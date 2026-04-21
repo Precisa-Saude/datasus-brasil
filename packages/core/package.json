@@ -36,11 +36,15 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
+    "data",
     "dist"
   ],
   "scripts": {
     "build": "tsup",
+    "build:ans-mapping": "tsx scripts/extract-ans-xlsx.ts",
+    "build:sigtap-mapping": "tsx scripts/build-sigtap-mapping.ts",
     "clean": "rm -rf dist .turbo",
+    "fix:fhir-brasil-tuss": "tsx scripts/fix-fhir-brasil-tuss.ts",
     "lint": "eslint src/ --max-warnings 0",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

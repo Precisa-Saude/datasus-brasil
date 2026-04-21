@@ -17,6 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
+    "llm:refine-mapping": "tsx scripts/llm-refine-mapping.ts",
     "prepare": "husky",
     "release": "semantic-release",
     "test": "turbo run test",

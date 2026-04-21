@@ -136,6 +136,43 @@ const config = [
       'prefer-const': 'error',
     },
   },
+
+  {
+    files: ['scripts/**/*.ts', 'packages/*/scripts/**/*.ts'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        project: false,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': typescript,
+      prettier,
+      'simple-import-sort': simpleImportSort,
+    },
+    rules: {
+      ...prettierConfig.rules,
+      'prettier/prettier': 'error',
+      'simple-import-sort/imports': 'error',
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'separate-type-imports' },
+      ],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+      'no-console': 'off',
+      'prefer-const': 'error',
+      'prefer-template': 'error',
+    },
+  },
 ];
 
 export default config;
