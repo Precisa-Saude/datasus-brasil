@@ -6,7 +6,7 @@
 set -e
 
 echo "→ Verificando lockfile..."
-pnpm install --frozen-lockfile --offline
+pnpm install --frozen-lockfile
 
 echo "→ Format check..."
 pnpm format:check
