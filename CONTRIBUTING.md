@@ -12,7 +12,7 @@ Obrigado pelo interesse em contribuir com o datasus-brasil!
    - Passos para reproduzir
    - Comportamento esperado vs. obtido
    - Versão do pacote
-   - Para problemas de decodificação, informe o dataset/vintage (ex: `SIH-RD SP 2024/03`) e anexe arquivo mínimo reproduzível
+   - Para problemas de decodificação, informe o dataset/vintage (ex: `CNES-ST SP 2024/03`) e anexe arquivo mínimo reproduzível
 
 ### Propor Melhorias
 
