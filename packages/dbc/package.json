@@ -1,0 +1,63 @@
+{
+  "name": "@precisa-saude/datasus-dbc",
+  "version": "0.1.0",
+  "description": "Decoder TS/JS puro do formato DBC (xBase DBF + PKWARE DCL Implode) usado pelo DATASUS. Browser + Node compatível.",
+  "keywords": [
+    "datasus",
+    "dbc",
+    "dbf",
+    "pkware",
+    "dcl-implode",
+    "blast",
+    "xbase",
+    "brasil",
+    "saúde"
+  ],
+  "homepage": "https://github.com/Precisa-Saude/datasus-brasil/tree/main/packages/dbc#readme",
+  "bugs": "https://github.com/Precisa-Saude/datasus-brasil/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Precisa-Saude/datasus-brasil.git",
+    "directory": "packages/dbc"
+  },
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist .turbo",
+    "lint": "eslint src/ --max-warnings 0",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "~5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
