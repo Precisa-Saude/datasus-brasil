@@ -44,3 +44,13 @@ jobs:
 
       - name: Test
         run: pnpm turbo run test
+
+  # ── PR only: Claude code review ────────────────────────────
+  review:
+    name: Code Review
+    needs: build-and-test
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/review.yml
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+    secrets: inherit
