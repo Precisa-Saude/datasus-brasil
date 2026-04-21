@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: datasus-brasil
+message: >-
+  Se você utilizar este software em pesquisa acadêmica,
+  por favor cite-o usando os metadados abaixo.
+type: software
+authors:
+  - name: Precisa Saúde
+    website: https://precisa-saude.com.br
+repository-code: https://github.com/Precisa-Saude/datasus-brasil
+url: https://datasus-brasil.dev.br
+keywords:
+  - datasus
+  - sus
+  - sih
+  - sinan
+  - cnes
+  - dbc
+  - dbf
+  - brasil
+  - saúde
+  - microdados
+license: Apache-2.0

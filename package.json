@@ -1,0 +1,69 @@
+{
+  "name": "datasus-brasil",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Toolkit TS/JS para microdados abertos do DATASUS — decoder DBC puro JavaScript, cliente FTP, schemas tipados",
+  "homepage": "https://github.com/Precisa-Saude/datasus-brasil",
+  "bugs": "https://github.com/Precisa-Saude/datasus-brasil/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Precisa-Saude/datasus-brasil.git"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "clean": "turbo run clean",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "prepare": "husky",
+    "release": "semantic-release",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "typecheck": "turbo run typecheck"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "prettier --write",
+      "eslint --fix --max-warnings 0 --no-warn-ignored"
+    ],
+    "*.{js,json,md,css,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@eslint/js": "^10.0.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "@types/node": "^20.17.12",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-perfectionist": "^5.7.0",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.4.2",
+    "prettier-plugin-packagejson": "^3.0.2",
+    "semantic-release": "^25.0.3",
+    "tsup": "^8.3.5",
+    "turbo": "^2.3.3",
+    "typescript": "~5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}
