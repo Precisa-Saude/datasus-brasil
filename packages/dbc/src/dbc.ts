@@ -6,7 +6,7 @@
  * decompressing records), and the record data is compressed with PKWARE DCL
  * Implode.
  *
- * Layout (verified against a real SIH-RD DBC via hex inspection — Petruzalek's
+ * Layout (verified against real DATASUS DBC files via hex inspection — Petruzalek's
  * `DBC_FORMAT.md` offsets are shifted by 10 relative to what the files actually
  * contain; the DBF header occupies the start of the DBC, not starting at offset 10):
  *
