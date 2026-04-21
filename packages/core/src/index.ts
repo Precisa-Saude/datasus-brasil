@@ -15,6 +15,7 @@ export { countBy, countByNested, topN } from './aggregations/index.js';
 export type { CnesEstabelecimentoRecord, CnesProfissionalRecord } from './datasets/cnes/index.js';
 export { labelTipoUnidade } from './datasets/cnes/index.js';
 export { cnes } from './datasets/index.js';
+export type { DownloadOptions, ProgressEvent } from './ftp/index.js';
 export { download } from './ftp/index.js';
 export type { Municipio } from './labeling/index.js';
 export { allMunicipios, findMunicipio } from './labeling/index.js';

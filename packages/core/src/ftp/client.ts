@@ -23,6 +23,17 @@ function defaultCacheDir(): string {
     : join(homedir(), '.cache', 'datasus-brasil');
 }
 
+export interface ProgressEvent {
+  /** true se os bytes vieram do cache local (sem tráfego de rede). */
+  fromCache: boolean;
+  /** Caminho remoto sendo transferido. */
+  path: string;
+  /** Tamanho total em bytes; `null` se o servidor não reportou. */
+  total: null | number;
+  /** Bytes transferidos até o momento. */
+  transferred: number;
+}
+
 export interface DownloadOptions {
   /** Diretório de cache local. Default: `~/.cache/datasus-brasil`. */
   cache?: string;
@@ -30,7 +41,14 @@ export interface DownloadOptions {
   forceRefresh?: boolean;
   /** Host FTP. Default: `ftp.datasus.gov.br`. */
   host?: string;
-  /** Caminho absoluto no servidor FTP (ex: `/dissemin/publicos/SIHSUS/...`). */
+  /**
+   * Callback chamado com eventos de progresso. Invocado pelo menos uma vez:
+   * - cache hit: um único evento com `fromCache: true` e `transferred == total`.
+   * - download: evento inicial (transferred 0), N intermediários (intervalo
+   *   ~500ms) e um final com `transferred == total`.
+   */
+  onProgress?: (event: ProgressEvent) => void;
+  /** Caminho absoluto no servidor FTP (ex: `/dissemin/publicos/CNES/...`). */
   path: string;
   /** Modo seguro (FTPS). DATASUS usa FTP plano — default false. */
   secure?: boolean;
@@ -50,7 +68,15 @@ export async function download(options: DownloadOptions): Promise<Uint8Array> {
 
   if (!options.forceRefresh) {
     const cached = await readIfExists(localPath);
-    if (cached) return cached;
+    if (cached) {
+      options.onProgress?.({
+        fromCache: true,
+        path: options.path,
+        total: cached.byteLength,
+        transferred: cached.byteLength,
+      });
+      return cached;
+    }
   }
 
   await mkdir(dirname(localPath), { recursive: true });
@@ -63,8 +89,46 @@ export async function download(options: DownloadOptions): Promise<Uint8Array> {
       port: 21,
       secure: options.secure ?? false,
     });
+
+    let total: null | number = null;
+    try {
+      total = await client.size(options.path);
+    } catch {
+      // servidor não suportou SIZE — total fica desconhecido
+    }
+
+    options.onProgress?.({
+      fromCache: false,
+      path: options.path,
+      total,
+      transferred: 0,
+    });
+
+    if (options.onProgress) {
+      const onProgress = options.onProgress;
+      client.trackProgress((info) => {
+        onProgress({
+          fromCache: false,
+          path: options.path,
+          total,
+          transferred: info.bytesOverall,
+        });
+      });
+    }
+
     const writeStream = createWriteStream(localPath);
     await client.downloadTo(writeStream, options.path);
+
+    if (options.onProgress) {
+      client.trackProgress();
+      const finalSize = total ?? (await stat(localPath)).size;
+      options.onProgress({
+        fromCache: false,
+        path: options.path,
+        total: finalSize,
+        transferred: finalSize,
+      });
+    }
   } finally {
     client.close();
   }

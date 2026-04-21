@@ -40,3 +40,28 @@ export async function loadProfissionais(options: LoadOptions): Promise<CnesProfi
   }
   return records;
 }
+
+/**
+ * Versão streaming do CNES-ST — recomendado para varreduras single-pass ou
+ * processamento com `--limit` no CLI. Memória constante.
+ */
+export async function* streamEstabelecimentos(
+  options: LoadOptions,
+): AsyncIterable<CnesEstabelecimentoRecord> {
+  const path = cnesFtpPath({ ...options, sub: 'ST' });
+  const bytes = await download({ ...options.ftp, path });
+  for await (const record of readDbcRecords(bytes)) {
+    yield record as CnesEstabelecimentoRecord;
+  }
+}
+
+/** Versão streaming do CNES-PF. */
+export async function* streamProfissionais(
+  options: LoadOptions,
+): AsyncIterable<CnesProfissionalRecord> {
+  const path = cnesFtpPath({ ...options, sub: 'PF' });
+  const bytes = await download({ ...options.ftp, path });
+  for await (const record of readDbcRecords(bytes)) {
+    yield record as CnesProfissionalRecord;
+  }
+}
