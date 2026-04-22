@@ -32,6 +32,24 @@ describe('parseArgs', () => {
     expect(bools.has('h')).toBe(true);
   });
 
+  it('splits combined short flags like -vh into individual bools', () => {
+    const { bools } = parseArgs(['-vh']);
+    expect(bools.has('v')).toBe(true);
+    expect(bools.has('h')).toBe(true);
+    expect(bools.has('vh')).toBe(false);
+  });
+
+  it('accepts negative numbers as values, not flags', () => {
+    const { bools, opts } = parseArgs(['--year', '-5']);
+    expect(opts.get('year')).toBe('-5');
+    expect(bools.has('5')).toBe(false);
+  });
+
+  it('accepts negative numbers via =', () => {
+    const { opts } = parseArgs(['--offset=-10']);
+    expect(opts.get('offset')).toBe('-10');
+  });
+
   it('collects positional args', () => {
     const { positional } = parseArgs(['cnes', 'extra']);
     expect(positional).toEqual(['cnes', 'extra']);

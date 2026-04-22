@@ -27,21 +27,32 @@ export function parseArgs(argv: string[]): ParsedArgs {
       } else {
         const key = arg.slice(2);
         const next = argv[i + 1];
-        if (next !== undefined && !next.startsWith('-')) {
+        if (next !== undefined && !looksLikeFlag(next)) {
           opts.set(key, next);
           i++;
         } else {
           bools.add(key);
         }
       }
-    } else if (arg.startsWith('-') && arg.length > 1) {
-      bools.add(arg.slice(1));
+    } else if (arg.startsWith('-') && arg.length > 1 && !isNegativeNumber(arg)) {
+      // POSIX-style combined short flags: `-vh` => bools {v, h}.
+      for (const ch of arg.slice(1)) bools.add(ch);
     } else {
       positional.push(arg);
     }
   }
 
   return { bools, opts, positional };
+}
+
+function isNegativeNumber(s: string): boolean {
+  return /^-\d/.test(s);
+}
+
+function looksLikeFlag(s: string): boolean {
+  if (s.startsWith('--')) return true;
+  if (s.startsWith('-') && s.length > 1 && !isNegativeNumber(s)) return true;
+  return false;
 }
 
 export function requireOpt(args: ParsedArgs, name: string): string {

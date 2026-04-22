@@ -21,7 +21,6 @@ Title: "TUSS Procedimentos Laboratoriais ValueSet"
 Description: "Subconjunto de códigos TUSS para procedimentos laboratoriais relevantes aos biomarcadores suportados pelo fhir-brasil. Códigos da Tabela 22 (Procedimentos e Eventos em Saúde) da TUSS."
 
 // Hematologia
-// * $TUSS#40304361 "Hemograma completo"   // needs-review: sem match ANS confiável
 * $TUSS#40304361 "Hemograma completo (eritrograma, leucograma e plaquetas)"   // fixed from 40304370 — ANS: "Hemograma com contagem de plaquetas ou frações (eritrograma, leucograma, plaquetas)" (score 0.73)
 * $TUSS#40304558 "Reticulócitos, contagem"   // fixed from 40304540 — ANS: "Reticulócitos, contagem" (score 1.00)
 * $TUSS#40304370 "Velocidade de hemossedimentação (VHS)"   // fixed from 40304060 — ANS: "Hemossedimentação, (VHS) - pesquisa e/ou dosagem" (score 0.90)
@@ -40,7 +39,7 @@ Description: "Subconjunto de códigos TUSS para procedimentos laboratoriais rele
 * $TUSS#40302547 "Triglicerídeos"   // fixed from 40302695 — ANS: "Triglicerídeos - pesquisa e/ou dosagem" (score 1.00)
 * $TUSS#40302695 "Colesterol VLDL"   // fixed from 40301427 — ANS: "Colesterol (VLDL) - pesquisa e/ou dosagem" (score 1.00)
 * $TUSS#40301354 "Apolipoproteína A-1"   // fixed from 40301338 — ANS: "Apolipoproteína A (Apo A) - pesquisa e/ou dosagem" (score 0.85)
-* $TUSS#40301354 "Apolipoproteína B"   // fixed from 40301346 — ANS: "Apolipoproteína A (Apo A) - pesquisa e/ou dosagem" (score 0.85)
+* $TUSS#40301362 "Apolipoproteína B"   // manual override — ANS: "Apolipoproteína B (Apo B) - pesquisa e/ou dosagem" (fuzzy colide com Apo A, score 0.85; Apo B é biomarcador distinto)
 * $TUSS#40302210 "Lipoproteína (a)"   // fixed from 40302580 — ANS: "Lipoproteína (a) - Lp (a) - pesquisa e/ou dosagem" (score 0.85)
 
 // Bioquímica — função hepática

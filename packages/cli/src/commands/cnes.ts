@@ -13,7 +13,12 @@ import type { ParsedArgs } from '../args.js';
 import { optInt, requireInt, requireOpt } from '../args.js';
 import { emit } from '../output.js';
 import { createProgressReporter } from '../progress.js';
-import { consumeStream, emitJsonlRecord, parseStreamOptions } from '../stream.js';
+import {
+  consumeStream,
+  emitJsonArrayStream,
+  emitJsonlRecord,
+  parseStreamOptions,
+} from '../stream.js';
 
 export const CNES_USAGE = `datasus-brasil cnes --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw] [--format json|jsonl]
 
@@ -53,10 +58,8 @@ export async function runCnes(args: ParsedArgs): Promise<void> {
   }
 
   if (stream.raw) {
-    const buffer: unknown[] = [];
-    const n = await consumeStream(source, stream.limit, (r) => buffer.push(r));
+    const n = await emitJsonArrayStream(source, stream.limit);
     process.stderr.write(`Emitidos ${n} registros.\n`);
-    emit(buffer, 'json');
     return;
   }
 

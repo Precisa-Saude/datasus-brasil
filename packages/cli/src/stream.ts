@@ -4,7 +4,7 @@
  */
 
 import type { ParsedArgs } from './args.js';
-import { optInt, UsageError } from './args.js';
+import { UsageError } from './args.js';
 import type { OutputFormat } from './output.js';
 import { parseFormat } from './output.js';
 
@@ -17,9 +17,15 @@ export interface StreamOptions {
 
 export function parseStreamOptions(args: ParsedArgs): StreamOptions {
   const rawLimit = args.opts.get('limit');
-  const limit = rawLimit === undefined ? null : optInt(args, 'limit', 0);
-  if (limit !== null && limit <= 0) {
-    throw new UsageError("--limit deve ser inteiro positivo (ex: '--limit 100').");
+  let limit: null | number = null;
+  if (rawLimit !== undefined) {
+    const n = Number(rawLimit);
+    if (!Number.isInteger(n) || n <= 0) {
+      throw new UsageError(
+        `--limit deve ser inteiro positivo (ex: '--limit 100'), recebido: '${rawLimit}'`,
+      );
+    }
+    limit = n;
   }
   const raw = args.bools.has('raw');
   // `--raw` sem `--format` defaulta pra jsonl (streaming-friendly).
@@ -51,4 +57,26 @@ export async function consumeStream<T>(
  */
 export function emitJsonlRecord(record: unknown): void {
   process.stdout.write(`${JSON.stringify(record)}\n`);
+}
+
+/**
+ * Emite os registros do source como um único array JSON, streamando os
+ * elementos incrementalmente para manter memória constante. Usado no
+ * modo `--raw --format json`, que exige um array válido em stdout mas
+ * não pode bufferizar todos os registros (CNES-ST chega a centenas de
+ * milhares de linhas).
+ */
+export async function emitJsonArrayStream<T>(
+  source: AsyncIterable<T>,
+  limit: null | number,
+): Promise<number> {
+  let first = true;
+  process.stdout.write('[');
+  const n = await consumeStream(source, limit, (record) => {
+    process.stdout.write(first ? '' : ',');
+    process.stdout.write(JSON.stringify(record));
+    first = false;
+  });
+  process.stdout.write(']\n');
+  return n;
 }
