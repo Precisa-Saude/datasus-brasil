@@ -25,7 +25,38 @@ for await (const record of readDbcRecords(new Uint8Array(file))) {
 
 ## API
 
-Em desenvolvimento — ver [PRE-198](https://linear.app/precisa-saude/issue/PRE-198) M1.
+Três camadas, expostas incrementalmente:
+
+### Alto nível — iterator de registros
+
+```ts
+readDbcRecords(source: Uint8Array, options?: ReadDbfOptions): AsyncIterable<DbfRecord>
+```
+
+Combina `dbcToDbf` + `readDbfRecords`. Retorna objetos JS com campos DBF tipados (strings, números, datas), prontos pra `JSON.stringify`.
+
+### Nível médio — envelope DBC → DBF
+
+```ts
+dbcToDbf(dbc: Uint8Array): Uint8Array
+readDbcMetadata(dbc: Uint8Array): DbfHeaderInfo
+```
+
+Parseia o envelope DATASUS (header de 10 bytes + DBF header + DCL payload) e retorna o DBF descomprimido.
+
+### Baixo nível — DBF reader + DCL decompressor
+
+```ts
+readDbfHeader(dbf: Uint8Array): DbfHeader
+readDbfRecords(dbf: Uint8Array, options?: ReadDbfOptions): AsyncIterable<DbfRecord>
+implodeDecompress(compressed: Uint8Array, uncompressedLength: number): Uint8Array
+```
+
+`implodeDecompress` é um port do PKWARE DCL Implode em TS puro; use só se precisar processar payloads DCL fora do contexto DATASUS.
+
+### Tipos
+
+`DbfHeader`, `DbfField`, `DbfRecord`, `DbfValue`, `ReadDbfOptions`, `DbfHeaderInfo` — todos exportados.
 
 ## Referências
 
