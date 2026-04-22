@@ -1,5 +1,8 @@
 # Full-checks hook. Runs the same gates as CI so a failing push is caught locally.
 # Per-repo coverage thresholds live in vitest config, not here.
+#
+# Usa `pnpm turbo run` quando turbo está disponível (paralelismo + caching);
+# fallback para `pnpm -r --parallel` se o repo não usa turbo.
 
 set -e
 
@@ -9,13 +12,16 @@ pnpm install --frozen-lockfile --prefer-offline
 echo "→ prettier"
 pnpm format:check
 
-echo "→ eslint"
-pnpm -r lint
-
-echo "→ typescript"
-pnpm -r typecheck
-
-echo "→ tests"
-pnpm -r test
+if pnpm exec turbo --version >/dev/null 2>&1; then
+  echo "→ eslint + typescript + tests (turbo)"
+  pnpm turbo run lint typecheck test
+else
+  echo "→ eslint"
+  pnpm -r --parallel lint
+  echo "→ typescript"
+  pnpm -r --parallel typecheck
+  echo "→ tests"
+  pnpm -r --parallel test
+fi
 
 echo "✓ pre-push checks passed"
