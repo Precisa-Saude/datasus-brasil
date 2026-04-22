@@ -6,8 +6,8 @@ NÃO use "You're absolutely right" ou equivalentes. Mantenha um tom profissional
 
 **CRÍTICO**: Toda documentação, mensagens de commit e texto voltado ao usuário devem usar pt-BR com acentuação correta. Nunca omita acentos — isso é visualmente errado e passa uma impressão de descuido.
 
-**Errado**: `definicoes`, `referencia`, `codigo`, `clinica`, `Instalacao`, `rapido`, `internacoes`
-**Correto**: `definições`, `referência`, `código`, `clínica`, `Instalação`, `rápido`, `internações`
+**Errado**: `definicoes`, `referencia`, `codigo`, `clinica`, `Instalacao`, `rapido`
+**Correto**: `definições`, `referência`, `código`, `clínica`, `Instalação`, `rápido`
 
 ## Visão Geral do Projeto
 
@@ -90,13 +90,13 @@ git pull --rebase origin main
 Mensagens em pt-BR. Exemplos:
 
 - `feat(dbc): adicionar parser do header DBC`
-- `fix(core): corrigir decoding de datas em SIH-RD`
-- `test(dbc): adicionar fixtures de regressão para DENG`
+- `fix(core): corrigir decoding de datas em CNES`
+- `test(dbc): adicionar fixtures de regressão`
 - `docs: atualizar README com exemplo de agregação`
 
 ## Integridade dos Dados
 
-Microdados DATASUS são a fonte de verdade. Não inventar valores, não aplicar transformações silenciosas. Quando uma vintage difere de schema (SIH-RD 2008 ≠ 2024), declarar explicitamente o schema aplicado.
+Microdados DATASUS são a fonte de verdade. Não inventar valores, não aplicar transformações silenciosas. Quando uma vintage difere de schema entre anos, declarar explicitamente o schema aplicado.
 
 ## Worktrees para Sessões Paralelas
 

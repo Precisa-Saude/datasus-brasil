@@ -1,0 +1,15 @@
+{
+  "name": "@datasus-brasil/examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cnes-establishments": "tsx cnes-establishments.ts"
+  },
+  "dependencies": {
+    "@precisa-saude/datasus": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

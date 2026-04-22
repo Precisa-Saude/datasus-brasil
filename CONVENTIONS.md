@@ -33,7 +33,7 @@ Exemplos:
 
 - `feat(dbc): adicionar parser do header DBC`
 - `fix(core): corrigir encoding latin1 em campos com acentos`
-- `test(dbc): adicionar fixtures de SIH-RD para testes de regressão`
+- `test(dbc): adicionar fixtures para testes de regressão`
 - `docs: atualizar README com exemplo de uso`
 
 ## Testes

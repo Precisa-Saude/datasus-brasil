@@ -7,3 +7,6 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 .cache/
+
+# Checkpoint transiente do scripts/llm-refine-mapping.ts
+packages/core/data/*.llm.partial.json

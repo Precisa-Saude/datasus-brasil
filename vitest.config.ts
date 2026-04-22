@@ -3,7 +3,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     coverage: {
-      exclude: ['**/dist/**', '**/tsup.config.ts', '**/src/cli/index.ts'],
+      exclude: [
+        '**/dist/**',
+        '**/tsup.config.ts',
+        '**/src/cli/index.ts',
+        '**/packages/cli/src/index.ts',
+      ],
       provider: 'v8',
       reporter: ['text', 'lcov'],
       thresholds: {
