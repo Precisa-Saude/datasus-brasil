@@ -4,10 +4,15 @@
  * codes e serializa erros no stderr.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { parseArgs, UsageError } from './args.js';
 import { CNES_USAGE, runCnes } from './commands/cnes.js';
 
-export const VERSION = '0.1.0';
+const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
+export const VERSION = (JSON.parse(readFileSync(pkgPath, 'utf8')) as { version: string }).version;
 
 export const ROOT_USAGE = `datasus-brasil — CLI para microdados DATASUS
 
@@ -60,6 +65,11 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
       await runCnes(args);
       return {};
     default:
+      if (command.startsWith('-')) {
+        throw new UsageError(
+          `Flags devem vir depois do comando. Uso: datasus-brasil <comando> [flags] (recebido: '${command}')`,
+        );
+      }
       throw new UsageError(`Comando desconhecido: '${command}'`);
   }
 }

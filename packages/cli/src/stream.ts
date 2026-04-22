@@ -71,12 +71,18 @@ export async function emitJsonArrayStream<T>(
   limit: null | number,
 ): Promise<number> {
   let first = true;
+  let n = 0;
   process.stdout.write('[');
-  const n = await consumeStream(source, limit, (record) => {
-    process.stdout.write(first ? '' : ',');
-    process.stdout.write(JSON.stringify(record));
-    first = false;
-  });
-  process.stdout.write(']\n');
+  try {
+    n = await consumeStream(source, limit, (record) => {
+      process.stdout.write(first ? '' : ',');
+      process.stdout.write(JSON.stringify(record));
+      first = false;
+    });
+  } finally {
+    // Fecha o array mesmo em erro mid-stream, produzindo JSON válido
+    // (ainda que truncado) em vez de `[{...},{...}` sem fechamento.
+    process.stdout.write(']\n');
+  }
   return n;
 }

@@ -27,7 +27,10 @@ export function createProgressReporter(
 ): (event: ProgressEvent) => void {
   const stream = options.stream ?? process.stderr;
   const isTTY = Boolean(stream.isTTY);
-  const startTime = Date.now();
+  // `startTime` é capturado no primeiro evento (não na criação do
+  // reporter) pra que delays de setup FTP não inflem o denominador e
+  // subestimem a velocidade reportada.
+  let startTime: null | number = null;
   let lastLineLength = 0;
   let finished = false;
 
@@ -54,6 +57,7 @@ export function createProgressReporter(
       return;
     }
 
+    if (startTime === null) startTime = Date.now();
     const elapsedSec = (Date.now() - startTime) / 1000;
     const speed = elapsedSec > 0 ? event.transferred / elapsedSec : 0;
     const transferredStr = formatBytes(event.transferred);
