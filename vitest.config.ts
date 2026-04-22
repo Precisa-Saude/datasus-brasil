@@ -8,6 +8,12 @@ export default defineConfig({
         '**/tsup.config.ts',
         '**/src/cli/index.ts',
         '**/packages/cli/src/index.ts',
+        // Build-time scripts geram tabelas de códigos — não fazem parte
+        // do runtime publicado.
+        '**/scripts/**',
+        // Arquivos só de tipo TypeScript — apagam no build, então a
+        // cobertura sempre cai para 0/0/0 e polui o cálculo agregado.
+        '**/types.ts',
       ],
       provider: 'v8',
       reporter: ['text', 'lcov'],
