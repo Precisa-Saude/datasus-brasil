@@ -11,14 +11,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  # `contents: write` porque _release.yml (reusable) precisa criar
+  # commits e tags via semantic-release. Workflows reusáveis só
+  # conseguem pedir permissões que o caller também concede.
+  contents: write
   issues: write
   pull-requests: write
   deployments: write
   id-token: write
-  # `models: read` é necessário porque review.yml (reusable) pode chamar
-  # GitHub Models via GITHUB_TOKEN no fallback. Workflows reusáveis só
-  # conseguem pedir permissões que o caller também concede.
+  # `models: read` pelo mesmo motivo: review.yml chama GitHub Models
+  # via GITHUB_TOKEN no fallback de providers.
   models: read
 
 concurrency:
