@@ -1,8 +1,10 @@
-# Full-checks hook. Runs the same gates as CI so a failing push is caught locally.
-# Per-repo coverage thresholds live in vitest config, not here.
+#!/usr/bin/env sh
+# Full-checks hook. Runs the same gates as CI so a failing push is
+# caught locally. Per-package coverage thresholds live in vitest config,
+# not here — this hook fails the push if any threshold fails.
 #
-# Usa `pnpm turbo run` quando turbo está disponível (paralelismo + caching);
-# fallback para `pnpm -r --parallel` se o repo não usa turbo.
+# Uses `pnpm turbo run` when turbo is available (parallelism + caching);
+# falls back to `pnpm -r --parallel` for repos without turbo.
 
 set -e
 
@@ -13,19 +15,21 @@ echo "→ prettier"
 pnpm format:check
 
 if pnpm exec turbo --version >/dev/null 2>&1; then
-  echo "→ eslint + typescript + tests (turbo)"
-  pnpm turbo run lint typecheck test
+  echo "→ lint + typecheck + test + coverage (turbo)"
+  pnpm turbo run lint typecheck test test:coverage
 else
-  # Fallback sem turbo. Lint roda em paralelo (não depende de outputs
-  # cruzados entre pacotes). Typecheck e test rodam topologicamente
-  # (default do `pnpm -r`) porque podem depender de .d.ts ou dist/ de
-  # pacotes upstream.
-  echo "→ eslint"
+  # Fallback without turbo. Lint runs in parallel (no cross-package
+  # output dependencies). Typecheck/test run topologically (pnpm -r
+  # default) because they may depend on .d.ts or dist/ from upstream
+  # packages.
+  echo "→ lint"
   pnpm -r --parallel lint
-  echo "→ typescript"
+  echo "→ typecheck"
   pnpm -r typecheck
-  echo "→ tests"
+  echo "→ test"
   pnpm -r test
+  echo "→ coverage"
+  pnpm -r test:coverage
 fi
 
 echo "✓ pre-push checks passed"
