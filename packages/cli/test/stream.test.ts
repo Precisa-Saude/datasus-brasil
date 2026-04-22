@@ -11,6 +11,7 @@ describe('parseStreamOptions', () => {
   it('defaulta tudo (sem flags)', () => {
     expect(parseStreamOptions(parseArgs([]))).toEqual({
       format: 'json',
+      labeled: false,
       limit: null,
       raw: false,
     });
@@ -38,6 +39,27 @@ describe('parseStreamOptions', () => {
       format: 'json',
       raw: true,
     });
+  });
+
+  it('--labeled sem --format defaulta pra jsonl', () => {
+    expect(parseStreamOptions(parseArgs(['--labeled']))).toMatchObject({
+      format: 'jsonl',
+      labeled: true,
+      raw: false,
+    });
+  });
+
+  it('--labeled --format json preserva json', () => {
+    expect(parseStreamOptions(parseArgs(['--labeled', '--format', 'json']))).toMatchObject({
+      format: 'json',
+      labeled: true,
+    });
+  });
+
+  it('--raw e --labeled juntos são rejeitados', () => {
+    expect(() => parseStreamOptions(parseArgs(['--raw', '--labeled']))).toThrow(
+      /mutuamente exclusivos/,
+    );
   });
 
   it('sem --raw, --format usa o valor passado', () => {

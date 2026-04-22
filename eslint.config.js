@@ -15,4 +15,16 @@ export default [
       'max-lines-per-function': 'off',
     },
   },
+  {
+    // Scripts de build/manutenção rodam fora do tsconfig dos packages
+    // (eles não são publicados) e precisam console pra logar progresso.
+    files: ['scripts/**/*.ts', 'packages/*/scripts/**/*.ts'],
+    languageOptions: {
+      parserOptions: { project: false },
+    },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': 'off',
+      'no-console': 'off',
+    },
+  },
 ];

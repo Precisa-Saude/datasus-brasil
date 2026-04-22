@@ -2,12 +2,10 @@
 
 CLI para microdados DATASUS — download, decodificação e agregação com saída JSON (default) ou JSONL.
 
-> 🚧 Em desenvolvimento — ver [PRE-198](https://linear.app/precisa-saude/issue/PRE-198).
-
 ## Comandos
 
 ```bash
-datasus-brasil cnes --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw] [--format json|jsonl]
+datasus-brasil cnes --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw|--labeled] [--format json|jsonl]
 ```
 
 Use `datasus-brasil <comando> --help` para detalhes de cada comando.
@@ -15,7 +13,8 @@ Use `datasus-brasil <comando> --help` para detalhes de cada comando.
 **Flags de subset** (todos os comandos):
 
 - `--limit N` — para a leitura após N registros. Essencial pra smoke test em datasets grandes. Como arquivos DATASUS frequentemente vêm ordenados por UF/data, `--limit` combinado com agregação não é estatisticamente representativo — use pra exploração.
-- `--raw` — emite registros brutos em vez da agregação. Sem `--format` explícito, defaulta pra JSONL (streaming-friendly, memória constante).
+- `--labeled` — projeta cada registro via `labelEstabelecimento`, emitindo um objeto enxuto com todos os códigos DATASUS decodificados em pt-BR (tipo, gestão, esfera, natureza jurídica, leitos agregados, serviços de apoio, matriz atividade×convênio, competência ISO). Default de formato: JSONL.
+- `--raw` — emite registros brutos do DATASUS (150+ colunas com códigos). Mutuamente exclusivo com `--labeled`. Default de formato: JSONL.
 
 ## Testar localmente
 
@@ -70,9 +69,45 @@ JSON-first. Stdout recebe o resultado, stderr recebe progresso de download (barr
 {"count":171,"key":"Clínica / Centro de Especialidade"}
 ```
 
+### `--labeled` — estabelecimentos decodificados em pt-BR
+
+`datasus-brasil cnes --uf AC --year 2024 --month 1 --labeled --limit 1 --format json` projeta cada registro via `labelEstabelecimento`, emitindo tipo, gestão, natureza jurídica, leitos agregados, etc. — tudo legível:
+
+```json
+[
+  {
+    "cnes": "0258555",
+    "cnpj": "84306737000127",
+    "nomeFantasia": null,
+    "municipio": { "codigo": "120001", "nome": "Acrelândia", "uf": "AC" },
+    "competencia": "2024-01",
+    "tipo": { "codigo": "04", "rotulo": "Policlínica" },
+    "gestao": { "codigo": "M", "rotulo": "Municipal" },
+    "naturezaJuridica": { "codigo": "1244", "rotulo": "Município (administração direta)" },
+    "vinculoSUS": { "codigo": "1", "rotulo": "Vinculada ao SUS" },
+    "clientela": { "codigo": "02", "rotulo": "SUS e outras fontes" },
+    "instalacoes": [
+      { "codigo": "QTINST15", "quantidade": 1, "rotulo": "Consultórios indiferenciados" }
+    ],
+    "leitos": { "total": 0, "porEspecialidade": [] },
+    "servicosApoio": [
+      { "codigo": "SERAP09", "modalidade": "terceirizado", "rotulo": "Hemoterapia" }
+    ],
+    "matrizAtividadeConvenio": [
+      {
+        "atividade": "AP02",
+        "atividadeRotulo": "Média complexidade",
+        "convenio": "CV01",
+        "convenioRotulo": "SUS"
+      }
+    ]
+  }
+]
+```
+
 ### `--raw` — registros brutos
 
-`datasus-brasil cnes --uf AC --year 2024 --month 1 --raw --limit 1` emite cada registro CNES-ST completo como JSONL (uma linha, ~80 campos). Usa-se pra inspecionar schema ou alimentar pipelines externos.
+`datasus-brasil cnes --uf AC --year 2024 --month 1 --raw --limit 1` emite cada registro CNES-ST completo como JSONL (uma linha, 150+ campos DATASUS com códigos). Usa-se pra inspecionar schema ou alimentar pipelines externos.
 
 ### Pipeline com `jq`
 
@@ -83,7 +118,15 @@ datasus-brasil cnes --uf SP --year 2024 --month 1 | jq '.[0]'
 # filtrar CNES-ST por tipo específico em streaming
 datasus-brasil cnes --uf SP --year 2024 --month 1 --raw \
   | jq -c 'select(.TP_UNID == "01") | {cnes: .CNES, nome: .FANTASIA}'
+
+# contagem por gestão a partir do modo labeled
+datasus-brasil cnes --uf SP --year 2024 --month 1 --labeled \
+  | jq -s 'group_by(.gestao.rotulo) | map({gestao: .[0].gestao.rotulo, count: length})'
 ```
+
+### Smoke test end-to-end
+
+[`examples/cnes-smoke-test.sh`](../../examples/cnes-smoke-test.sh) exercita os três modos acima contra o FTP DATASUS real — útil como verificação de release.
 
 ## Progresso de download
 

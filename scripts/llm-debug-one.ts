@@ -11,6 +11,9 @@ import { fileURLToPath } from 'node:url';
 const MONOREPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const PRECISA_ROOT = resolve(MONOREPO_ROOT, '..');
 const BIOMARKERS_TS = join(PRECISA_ROOT, 'fhir-brasil', 'packages', 'core', 'src', 'biomarkers.ts');
+// Lê a versão completa (com `candidates_shown`) da pasta de auditoria.
+// O bundle de runtime em `src/terminology/data/loinc-biomarkers.json` é slim
+// e não serve pra debug.
 const OUT_JSON = join(MONOREPO_ROOT, 'packages', 'core', 'data', 'loinc-tuss-sigtap.llm.json');
 
 const MODEL = process.env['OPENROUTER_MODEL'] ?? 'google/gemini-3.1-pro-preview';

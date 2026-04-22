@@ -10,6 +10,8 @@ import { parseFormat } from './output.js';
 
 export interface StreamOptions {
   format: OutputFormat;
+  /** Projetar cada registro via labeler (ex: `cnes.labelEstabelecimento`). */
+  labeled: boolean;
   /** null = sem limite. */
   limit: null | number;
   raw: boolean;
@@ -28,9 +30,13 @@ export function parseStreamOptions(args: ParsedArgs): StreamOptions {
     limit = n;
   }
   const raw = args.bools.has('raw');
-  // `--raw` sem `--format` defaulta pra jsonl (streaming-friendly).
-  const formatRaw = args.opts.get('format') ?? (raw ? 'jsonl' : undefined);
-  return { format: parseFormat(formatRaw), limit, raw };
+  const labeled = args.bools.has('labeled');
+  if (raw && labeled) {
+    throw new UsageError('--raw e --labeled são mutuamente exclusivos.');
+  }
+  // `--raw` e `--labeled` sem `--format` defaultam pra jsonl (streaming-friendly).
+  const formatRaw = args.opts.get('format') ?? (raw || labeled ? 'jsonl' : undefined);
+  return { format: parseFormat(formatRaw), labeled, limit, raw };
 }
 
 /**

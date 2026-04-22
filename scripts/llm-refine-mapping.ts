@@ -16,13 +16,18 @@
  *
  * ## Entrada
  *
- *   `packages/core/data/ans-tuss-sigtap-oficial.json` — tabela oficial ANS
+ *   `packages/core/src/terminology/data/ans-tuss-sigtap.json` — tabela oficial ANS
  *   `fhir-brasil/packages/core/src/biomarkers.ts` — lista de biomarcadores
  *
  * ## Saída
  *
- *   `packages/core/data/loinc-tuss-sigtap.llm.json`      mapeamento final
- *   `packages/core/data/loinc-tuss-sigtap.llm.report.md` disagreements vs fuzzy
+ *   `packages/core/data/loinc-tuss-sigtap.llm.json`            mapeamento completo (audit,
+ *                                                               inclui `candidates_shown`
+ *                                                               usado por REPROCESS e
+ *                                                               llm-debug-one)
+ *   `packages/core/src/terminology/data/loinc-biomarkers.json` versão slim consumida pelo
+ *                                                               runtime (sem `candidates_shown`)
+ *   `packages/core/data/loinc-tuss-sigtap.llm.report.md`       disagreements vs fuzzy
  *
  * ## Uso
  *
@@ -61,9 +66,11 @@ import { fileURLToPath } from 'node:url';
 const MONOREPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const PRECISA_ROOT = resolve(MONOREPO_ROOT, '..');
 const DATA_DIR = join(MONOREPO_ROOT, 'packages', 'core', 'data');
+const TERMINOLOGY_DATA_DIR = join(MONOREPO_ROOT, 'packages', 'core', 'src', 'terminology', 'data');
 const BIOMARKERS_TS = join(PRECISA_ROOT, 'fhir-brasil', 'packages', 'core', 'src', 'biomarkers.ts');
-const ANS_JSON = join(DATA_DIR, 'ans-tuss-sigtap-oficial.json');
+const ANS_JSON = join(TERMINOLOGY_DATA_DIR, 'ans-tuss-sigtap.json');
 const OUT_JSON = join(DATA_DIR, 'loinc-tuss-sigtap.llm.json');
+const SLIM_OUT_JSON = join(TERMINOLOGY_DATA_DIR, 'loinc-biomarkers.json');
 const PARTIAL_JSON = join(DATA_DIR, 'loinc-tuss-sigtap.llm.partial.json');
 const OUT_REPORT = join(DATA_DIR, 'loinc-tuss-sigtap.llm.report.md');
 
@@ -246,6 +253,14 @@ async function main(): Promise<void> {
     OUT_JSON,
     `${JSON.stringify({ _source: envelope._source, mapping: results, model: MODEL }, null, 2)}\n`,
   );
+  const slim = results.map(({ candidates_shown: _c, error: _e, ...rest }) => rest);
+  await writeFile(
+    SLIM_OUT_JSON,
+    // Slim file não inclui `_source` (com `extracted_at` timestamp) pra
+    // evitar churn no checksum do pacote quando a extração é refeita —
+    // procedência completa fica no audit file em OUT_JSON.
+    `${JSON.stringify({ mapping: slim, model: MODEL }, null, 2)}\n`,
+  );
   await writeFile(OUT_REPORT, renderReport(results, envelope._source));
 
   // Limpa checkpoint
@@ -264,6 +279,7 @@ async function main(): Promise<void> {
       `${summary.disagreements} divergem do fuzzy.`,
   );
   console.error(`[output] ${OUT_JSON}`);
+  console.error(`[output] ${SLIM_OUT_JSON}`);
   console.error(`[output] ${OUT_REPORT}`);
 }
 
@@ -812,4 +828,5 @@ function renderReport(results: RefinedEntry[], source: Record<string, unknown>):
 }
 
 await mkdir(DATA_DIR, { recursive: true });
+await mkdir(TERMINOLOGY_DATA_DIR, { recursive: true });
 await main();

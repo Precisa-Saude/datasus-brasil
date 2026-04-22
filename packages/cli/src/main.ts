@@ -28,12 +28,13 @@ Globais:
 
 Flags de subset (todos os comandos):
   --limit N    Para a leitura após N registros (bom pra smoke test).
-  --raw        Emite registros brutos em JSONL em vez da agregação.
+  --labeled    Emite cada registro decodificado em pt-BR (JSONL default).
+  --raw        Emite registros brutos do DATASUS (JSONL default).
 
 Exemplos:
   datasus-brasil cnes --uf AC --year 2024 --month 1
-  datasus-brasil cnes --uf SP --year 2024 --month 1 --format jsonl
-  datasus-brasil cnes --uf AC --year 2024 --month 1 --raw --limit 10
+  datasus-brasil cnes --uf AC --year 2024 --month 1 --labeled --limit 3
+  datasus-brasil cnes --uf SP --year 2024 --month 1 --raw --format jsonl
 
 Ver '<comando> --help' para detalhes de cada comando.`;
 
