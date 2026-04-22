@@ -16,12 +16,16 @@ if pnpm exec turbo --version >/dev/null 2>&1; then
   echo "→ eslint + typescript + tests (turbo)"
   pnpm turbo run lint typecheck test
 else
+  # Fallback sem turbo. Lint roda em paralelo (não depende de outputs
+  # cruzados entre pacotes). Typecheck e test rodam topologicamente
+  # (default do `pnpm -r`) porque podem depender de .d.ts ou dist/ de
+  # pacotes upstream.
   echo "→ eslint"
   pnpm -r --parallel lint
   echo "→ typescript"
-  pnpm -r --parallel typecheck
+  pnpm -r typecheck
   echo "→ tests"
-  pnpm -r --parallel test
+  pnpm -r test
 fi
 
 echo "✓ pre-push checks passed"
