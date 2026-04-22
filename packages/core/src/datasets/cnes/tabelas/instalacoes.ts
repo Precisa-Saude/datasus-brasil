@@ -57,6 +57,8 @@ export interface InstalacaoContagem {
   rotulo: null | string;
 }
 
+const MAX_QTINST_SLOT = 99;
+
 /**
  * Extrai todas as instalações com `quantidade > 0` a partir do registro
  * CNES-ST, retornando com rótulo pt-BR. Campos ausentes ou zero são
@@ -64,15 +66,20 @@ export interface InstalacaoContagem {
  * `INSTALACOES_LABELS` (ex: QTINST25, QTINST26) aparecem com
  * `rotulo: null` pra que o consumidor consiga resolver pela vintage
  * específica do dado sem silenciar dados.
+ *
+ * Itera sobre os slots `QTINST01..QTINST99` em ordem numérica fixa —
+ * determinístico (independe da ordem dos campos no record) e bounded
+ * (pula o scan das ~150 outras colunas do CNES-ST).
  */
 export function labelInstalacoes(record: Record<string, unknown>): readonly InstalacaoContagem[] {
   const out: InstalacaoContagem[] = [];
-  for (const key of Object.keys(record)) {
-    if (!/^QTINST\d+$/.test(key)) continue;
-    const raw = record[key];
+  for (let i = 1; i <= MAX_QTINST_SLOT; i++) {
+    const codigo = `QTINST${String(i).padStart(2, '0')}`;
+    const raw = record[codigo];
+    if (raw === undefined) continue;
     const quantidade = typeof raw === 'number' ? raw : Number(raw);
     if (!Number.isFinite(quantidade) || quantidade <= 0) continue;
-    out.push({ codigo: key, quantidade, rotulo: INSTALACOES_LABELS[key] ?? null });
+    out.push({ codigo, quantidade, rotulo: INSTALACOES_LABELS[codigo] ?? null });
   }
   return out;
 }
