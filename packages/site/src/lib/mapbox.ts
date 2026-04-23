@@ -12,5 +12,15 @@ export function getMapboxToken(): null | string {
   return token;
 }
 
-export const BRAZIL_CENTER: [number, number] = [-52, -14];
-export const BRAZIL_ZOOM = 3.4;
+/**
+ * Brasil continental + Trindade/Martim Vaz, com uma folga pra não
+ * cortar o contorno em viewports normais. Formato aceito por
+ * `Map#fitBounds`: [[minLng, minLat], [maxLng, maxLat]].
+ */
+export const BRAZIL_BOUNDS: [[number, number], [number, number]] = [
+  [-76, -35],
+  [-32, 7],
+];
+
+/** Padding default do fitBounds — dá uma gutter visual no contêiner. */
+export const BRAZIL_FIT_PADDING = 32;

@@ -1,3 +1,4 @@
+import { GridOverlay } from '@precisa-saude/ui/decorative';
 import { Route, Routes } from 'react-router-dom';
 
 import { Footer } from './components/Footer';
@@ -9,7 +10,8 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col">
       <Nav />
-      <main className="flex-1">
+      <GridOverlay enabled={import.meta.env.DEV} />
+      <main className="flex flex-1 flex-col">
         <Routes>
           <Route element={<Home />} path="/" />
           <Route element={<Sobre />} path="/sobre" />

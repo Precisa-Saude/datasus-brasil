@@ -232,7 +232,13 @@ async function main(): Promise<void> {
   }
   ufOut.sort((a, b) => String(a.ufSigla).localeCompare(String(b.ufSigla)));
 
+  const availableUFs = Array.from(munByUf.entries())
+    .filter(([, acc]) => acc.size > 0)
+    .map(([uf]) => uf)
+    .sort();
+
   const indexOut = {
+    availableUFs,
     biomarkers: Array.from(biomarkers.values()).sort((a, b) => a.display.localeCompare(b.display)),
     competencias: Array.from(competenciasSet).sort(),
     geradoEm: new Date().toISOString(),

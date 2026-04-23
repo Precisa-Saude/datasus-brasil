@@ -40,6 +40,8 @@ export interface MunicipioAggregate {
 
 /** Metadados da agregação (biomarcadores presentes, competências, etc.). */
 export interface AggregateIndex {
+  /** UFs para as quais há arquivo de municípios disponível. */
+  availableUFs: string[];
   biomarkers: Array<{
     /** Código curto do biomarcador (ex: `"HbA1c"`). */
     code: string;

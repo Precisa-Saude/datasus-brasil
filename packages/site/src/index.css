@@ -34,6 +34,14 @@
 }
 
 @layer utilities {
+  .font-margem {
+    font-family: 'Roboto', system-ui, sans-serif;
+  }
+
+  .font-pausa {
+    font-family: 'Roboto Serif', Georgia, serif;
+  }
+
   .font-mono {
     font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
   }

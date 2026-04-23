@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { BiomarkerSelect } from '@/components/BiomarkerSelect';
+import { BrasilMap } from '@/components/BrasilMap';
 import { CompetenciaSelect } from '@/components/CompetenciaSelect';
-import { MapView } from '@/components/MapView';
-import { MunicipioMapView } from '@/components/MunicipioMapView';
 import type { AggregateIndex, MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
 
 interface NationalBundle {
@@ -58,6 +57,14 @@ export default function Home() {
   const [error, setError] = useState<null | string>(null);
   const [loinc, setLoinc] = useState<null | string>(null);
   const [competencia, setCompetencia] = useState<null | string>(null);
+  // Painel flutuante posicionado absolutamente em relação ao mapa,
+  // centralizado verticalmente. Largura = 2 colunas do grid
+  // compartilhado (`--col-w` do @precisa-saude/themes); `left` começa
+  // na borda esquerda do grid (= gutter fora do max-w).
+  const panelStyle = {
+    left: 'max((100vw - var(--grid-max-w)) / 2, 1rem)',
+    width: 'calc(var(--col-w) * 3 + 2rem)',
+  } as const;
 
   useEffect(() => {
     loadNational().then(
@@ -82,75 +89,74 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="font-sans text-2xl font-bold tracking-tight">
-          Biomarcadores do SUS por região
-        </h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          Distribuição geográfica de exames laboratoriais faturados ao SUS (SIA-PA) cruzada com o
-          catálogo LOINC. Clique em uma UF para detalhar por município.
-        </p>
-      </header>
+    <div className="relative flex-1 overflow-hidden">
+      {/* Camada do mapa ocupa 100% do espaço entre header e footer.
+          Instância única do Mapbox é mantida entre UF e município; a
+          transição troca só os layers + anima `fitBounds`. */}
+      <div className="absolute inset-0">
+        {bundle && loinc !== null && competencia !== null ? (
+          <BrasilMap
+            availableUFs={bundle.index.availableUFs ?? []}
+            competencia={competencia}
+            drilldown={drilldown}
+            geoUF={bundle.geoUF}
+            loinc={loinc}
+            onUfClick={handleUfClick}
+            ufData={bundle.ufData}
+          />
+        ) : !error ? (
+          <div className="bg-background flex h-full w-full items-center justify-center">
+            <p className="text-muted-foreground font-margem text-sm">Carregando agregados…</p>
+          </div>
+        ) : null}
+      </div>
 
-      {error !== null ? (
-        <div className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border p-4 text-sm">
-          <p className="font-medium">Não foi possível carregar os dados.</p>
-          <p className="mt-1">{error}</p>
-        </div>
+      {/* Painel flutuante: absolute no mapa, col 1 do grid compartilhado,
+          centralizado verticalmente. */}
+      {bundle && loinc !== null && competencia !== null ? (
+        <aside
+          className="border-border bg-card/95 pointer-events-auto absolute top-1/2 z-10 max-h-[calc(100%-2rem)] -translate-y-1/2 space-y-3 overflow-auto rounded-lg border p-4 shadow-lg backdrop-blur-md"
+          style={panelStyle}
+        >
+          <header className="space-y-1">
+            <h1 className="font-margem text-base font-semibold tracking-tight">
+              Biomarcadores do SUS por região
+            </h1>
+            <p className="text-muted-foreground font-margem text-xs leading-snug">
+              SIA-PA × LOINC.{' '}
+              {drilldown
+                ? `Municípios de ${drilldown.ufSigla}.`
+                : 'Clique em uma UF para detalhar.'}
+            </p>
+          </header>
+
+          <BiomarkerSelect biomarkers={bundle.index.biomarkers} onChange={setLoinc} value={loinc} />
+          <CompetenciaSelect
+            competencias={bundle.index.competencias}
+            onChange={setCompetencia}
+            value={competencia}
+          />
+          {drilldown ? (
+            <button
+              className="border-border bg-background hover:bg-muted w-full rounded-md border px-3 py-2 font-margem text-sm"
+              onClick={handleBackToBrazil}
+              type="button"
+            >
+              ← Voltar ao Brasil
+            </button>
+          ) : null}
+          <p className="text-muted-foreground font-margem text-[11px] leading-snug">
+            SIA-SUS {competencia}. Filtrado para SIGTAP 02.02 (laboratório) e cruzado com LOINC.
+          </p>
+        </aside>
       ) : null}
 
-      {bundle && loinc !== null && competencia !== null ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-[240px_1fr]">
-          <aside className="space-y-4">
-            <BiomarkerSelect
-              biomarkers={bundle.index.biomarkers}
-              onChange={setLoinc}
-              value={loinc}
-            />
-            <CompetenciaSelect
-              competencias={bundle.index.competencias}
-              onChange={setCompetencia}
-              value={competencia}
-            />
-            {drilldown ? (
-              <button
-                className="border-border bg-background hover:bg-muted w-full rounded-md border px-3 py-2 font-sans text-sm"
-                onClick={handleBackToBrazil}
-                type="button"
-              >
-                ← Voltar ao Brasil
-              </button>
-            ) : null}
-            <div className="border-border bg-muted/30 text-muted-foreground rounded-md border p-3 text-xs">
-              <p className="font-sans font-medium text-foreground">Fonte</p>
-              <p className="mt-1">
-                SIA-SUS / Produção Ambulatorial, competência {competencia}. Filtrado para SIGTAP
-                grupo 02.02 (laboratório clínico) e cruzado com LOINC.
-              </p>
-            </div>
-          </aside>
-          <div className="h-[600px]">
-            {drilldown ? (
-              <MunicipioMapView
-                competencia={competencia}
-                data={drilldown.municipioData}
-                geoMunicipios={drilldown.geoMunicipios}
-                loinc={loinc}
-              />
-            ) : (
-              <MapView
-                competencia={competencia}
-                data={bundle.ufData}
-                geoUF={bundle.geoUF}
-                loinc={loinc}
-                onUfClick={handleUfClick}
-              />
-            )}
-          </div>
+      {/* Erro flutuante (canto superior direito). */}
+      {error !== null ? (
+        <div className="border-destructive/30 bg-destructive/10 text-destructive absolute top-4 right-4 z-10 max-w-sm rounded-lg border p-4 font-margem text-sm shadow-lg backdrop-blur">
+          <p className="font-medium">Não foi possível carregar os dados.</p>
+          <p className="mt-1 text-xs">{error}</p>
         </div>
-      ) : !error ? (
-        <p className="text-muted-foreground text-sm">Carregando agregados…</p>
       ) : null}
     </div>
   );
