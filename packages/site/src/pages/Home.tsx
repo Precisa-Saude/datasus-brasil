@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { BiomarkerSelect } from '@/components/BiomarkerSelect';
+import type { SelectedMunicipio } from '@/components/BrasilMap';
 import { BrasilMap } from '@/components/BrasilMap';
 import { CompetenciaSelect } from '@/components/CompetenciaSelect';
+import { MunicipioDetail } from '@/components/MunicipioDetail';
 import type { AggregateIndex, MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
 
 interface NationalBundle {
@@ -57,14 +59,30 @@ export default function Home() {
   const [error, setError] = useState<null | string>(null);
   const [loinc, setLoinc] = useState<null | string>(null);
   const [competencia, setCompetencia] = useState<null | string>(null);
+  const [selectedMun, setSelectedMun] = useState<null | SelectedMunicipio>(null);
   // Painel flutuante posicionado absolutamente em relação ao mapa,
-  // centralizado verticalmente. Largura = 2 colunas do grid
+  // centralizado verticalmente. Largura = 3 colunas do grid
   // compartilhado (`--col-w` do @precisa-saude/themes); `left` começa
   // na borda esquerda do grid (= gutter fora do max-w).
   const panelStyle = {
     left: 'max((100vw - var(--grid-max-w)) / 2, 1rem)',
     width: 'calc(var(--col-w) * 3 + 2rem)',
   } as const;
+  // Painel de detalhe na col oposta (direita), 4 cols, altura fixa em
+  // 80% do mapa e centralizado vertical — espelha o comportamento do
+  // painel de filtros e garante que a tabela nunca excede o viewport.
+  const detailStyle = {
+    height: '80%',
+    right: 'max((100vw - var(--grid-max-w)) / 2, 1rem)',
+    top: '10%',
+    width: 'calc(var(--col-w) * 4 + 3rem)',
+  } as const;
+
+  const biomarkersByLoinc = useMemo<Record<string, string>>(
+    () =>
+      bundle ? Object.fromEntries(bundle.index.biomarkers.map((b) => [b.loinc, b.display])) : {},
+    [bundle],
+  );
 
   useEffect(() => {
     loadNational().then(
@@ -86,6 +104,15 @@ export default function Home() {
 
   const handleBackToBrazil = useCallback(() => {
     setDrilldown(null);
+    setSelectedMun(null);
+  }, []);
+
+  const handleMunicipioClick = useCallback((m: SelectedMunicipio) => {
+    setSelectedMun(m);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setSelectedMun(null);
   }, []);
 
   return (
@@ -97,10 +124,15 @@ export default function Home() {
         {bundle && loinc !== null && competencia !== null ? (
           <BrasilMap
             availableUFs={bundle.index.availableUFs ?? []}
+            biomarkerDisplay={
+              bundle.index.biomarkers.find((b) => b.loinc === loinc)?.display ?? loinc
+            }
+            biomarkersByLoinc={biomarkersByLoinc}
             competencia={competencia}
             drilldown={drilldown}
             geoUF={bundle.geoUF}
             loinc={loinc}
+            onMunicipioClick={handleMunicipioClick}
             onUfClick={handleUfClick}
             ufData={bundle.ufData}
           />
@@ -123,10 +155,9 @@ export default function Home() {
               Biomarcadores do SUS por região
             </h1>
             <p className="text-muted-foreground font-margem text-xs leading-snug">
-              SIA-PA × LOINC.{' '}
               {drilldown
-                ? `Municípios de ${drilldown.ufSigla}.`
-                : 'Clique em uma UF para detalhar.'}
+                ? `Cada polígono é um município de ${drilldown.ufSigla}, colorido pelo volume de exames aprovados.`
+                : 'Cada polígono é uma UF, colorida pelo volume de exames aprovados. Clique para detalhar por município.'}
             </p>
           </header>
 
@@ -149,6 +180,22 @@ export default function Home() {
             SIA-SUS {competencia}. Filtrado para SIGTAP 02.02 (laboratório) e cruzado com LOINC.
           </p>
         </aside>
+      ) : null}
+
+      {/* Painel de detalhe do município (direita). Altura fixa em 80%
+          do mapa, centralizado vertical — a lista rola dentro da
+          <table>. */}
+      {bundle && drilldown && selectedMun && competencia ? (
+        <div className="absolute z-10" style={detailStyle}>
+          <MunicipioDetail
+            biomarkersByLoinc={biomarkersByLoinc}
+            competencia={competencia}
+            data={drilldown.municipioData}
+            municipio={selectedMun}
+            onClose={handleCloseDetail}
+            selectedLoinc={loinc ?? ''}
+          />
+        </div>
       ) : null}
 
       {/* Erro flutuante (canto superior direito). */}

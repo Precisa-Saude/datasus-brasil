@@ -24,7 +24,7 @@
  * cache e não refazem download.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,6 +39,7 @@ import {
 interface Cli {
   months: Array<{ month: number; year: number }>;
   outDir: string;
+  siteRoot: string;
   ufs: string[];
 }
 
@@ -104,7 +105,7 @@ function parseArgs(argv: string[]): Cli {
   const months = expandMonths(startISO, endISO);
   const siteRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
   const outDir = resolve(siteRoot, get('--out', 'public/data'));
-  return { months, outDir, ufs };
+  return { months, outDir, siteRoot, ufs };
 }
 
 function expandMonths(startISO: string, endISO: string): Array<{ month: number; year: number }> {
@@ -269,6 +270,30 @@ async function main(): Promise<void> {
       `${JSON.stringify(rows, null, 2)}\n`,
     );
     process.stderr.write(`Escrito ${rows.length} linhas em sia-pa-${ufSigla}-municipios.json\n`);
+
+    // Enriquece a GeoJSON municipal da UF com o nome do município
+    // (de `findMunicipio`) pra que o frontend sempre tenha o nome,
+    // mesmo de municípios sem exames faturados na competência.
+    const geoPath = resolve(cli.siteRoot, 'public/geo/municipios', `${ufSigla}.geojson`);
+    if (existsSync(geoPath)) {
+      const geo = JSON.parse(readFileSync(geoPath, 'utf-8')) as GeoJSON.FeatureCollection;
+      let enriched = 0;
+      for (const feature of geo.features) {
+        const codarea = String(feature.properties?.codarea ?? '');
+        if (codarea.length < 6 || feature.properties?.nome) continue;
+        const m = findMunicipio(codarea.slice(0, 6));
+        if (m) {
+          feature.properties = { ...feature.properties, nome: m.nome };
+          enriched += 1;
+        }
+      }
+      if (enriched > 0) {
+        writeFileSync(geoPath, JSON.stringify(geo));
+        process.stderr.write(
+          `Enriqueceu ${enriched} municípios em geo/municipios/${ufSigla}.geojson\n`,
+        );
+      }
+    }
   }
 
   process.stderr.write(`✓ Agregação completa. Arquivos em ${cli.outDir}\n`);
