@@ -36,6 +36,7 @@ Uso:
 
 Comandos:
   cnes     Top tipos de estabelecimento de saúde (CNES-ST).
+  sia      SIA-PA (Produção Ambulatorial) — procedimentos faturados ao SUS.
 
 Globais:
   -h, --help        Mostra esta ajuda (ou ajuda do comando).
@@ -178,6 +179,79 @@ datasus-brasil cnes --uf AC --year 2024 --month 1 --raw --limit 1 --format jsonl
 
 `--raw` é mutuamente exclusivo com `--labeled`.
 
+### `sia` — SIA-SUS (Produção Ambulatorial)
+
+SIA-PA contém **todos os procedimentos ambulatoriais faturados ao SUS** — incluindo exames laboratoriais, identificados pelo prefixo SIGTAP `02.02`.
+
+**Schema vintage:** SIA-PA 2008+ (60 colunas na vintage 2024). Limite inferior de ano: 2008 (`PAM/PAR` pré-2008 tem schema diferente e está fora de escopo).
+
+Agregado default (top-N procedimentos por SIGTAP com rótulo pt-BR):
+
+```bash
+datasus-brasil sia --uf AC --year 2024 --month 1 --top 5
+```
+
+```json
+[
+  { "count": 12345, "procedimento": "0301010072", "rotulo": "Consulta médica em atenção básica" },
+  { "count": 8921, "procedimento": "0202010279", "rotulo": "Dosagem de colesterol HDL" }
+]
+```
+
+Só exames laboratoriais (SIGTAP `02.02.*`), com enriquecimento LOINC:
+
+```bash
+datasus-brasil sia --uf AC --year 2024 --month 1 --laboratory --enrich-loinc --top 10
+```
+
+```json
+[
+  {
+    "biomarker": { "code": "HDL", "display": "Colesterol HDL" },
+    "count": 8921,
+    "loinc": "2085-9",
+    "procedimento": "0202010279",
+    "rotulo": "Dosagem de colesterol HDL"
+  }
+]
+```
+
+Registros decodificados em pt-BR (`--labeled`) — competência ISO, município expandido, procedimento com rótulo SIGTAP, sexo/raça/cor decodificados:
+
+```bash
+datasus-brasil sia --uf AC --year 2024 --month 1 --labeled --limit 1
+```
+
+```json
+{
+  "cbo": { "codigo": "225125", "rotulo": null },
+  "cidPrincipal": null,
+  "competencia": { "ano": 2024, "iso": "2024-01", "mes": 1 },
+  "estabelecimento": {
+    "cnes": "7530684",
+    "municipio": { "codigo": "120040", "nome": "Rio Branco", "uf": "AC" }
+  },
+  "idadeAnos": null,
+  "procedimento": { "codigo": "0204010128", "rotulo": "Mamografia unilateral" },
+  "quantidade": { "aprovada": 11, "apresentada": 11 },
+  "sexo": { "codigo": "0", "rotulo": "Não informado" },
+  "valor": { "aprovadoBRL": 92.18, "apresentadoBRL": 92.18 }
+}
+```
+
+Registros crus do DATASUS (`--raw`, 60 colunas `PA_*`):
+
+```bash
+datasus-brasil sia --uf AC --year 2024 --month 1 --raw --limit 1 --format jsonl
+```
+
+#### Limitações conhecidas do SIA-SUS
+
+- **Sub-registro:** nem todo atendimento SUS aparece no SIA — estabelecimentos com problemas de faturamento ou BPA atrasado podem subestimar a produção real. Ver [PMC 10508673](https://pmc.ncbi.nlm.nih.gov/articles/PMC10508673/) para análise sistemática.
+- **Volume:** PA é ordens de magnitude maior que CNES — uma UF grande × mês recente pode ter milhões de registros. Use `streamProducaoAmbulatorial` (não `load*`) em produção.
+- **Cobertura LOINC:** o enrichment cobre os 164 biomarcadores do catálogo `@precisa-saude/fhir`. Exames fora dessa lista retornam `loinc: null` mesmo sendo SIGTAP 02.02.
+- **Volume × precisão:** `PA_QTDAPR` é a quantidade aprovada (pode diferir da apresentada); `PA_VALAPR` está em reais (não centavos).
+
 ### Pipes com `jq`
 
 ```bash
@@ -232,6 +306,31 @@ for await (const record of cnes.streamEstabelecimentos({ uf: 'AC', year: 2024, m
 // Carregar tudo em memória (útil pra agregações)
 const todos = await cnes.loadEstabelecimentos({ uf: 'AC', year: 2024, month: 1 });
 ```
+
+### SIA-PA streaming + enrichment LOINC
+
+```ts
+import { enrichWithLoinc, isSigtapLaboratorio, sia } from '@precisa-saude/datasus';
+
+for await (const record of sia.streamProducaoAmbulatorial({
+  month: 1,
+  uf: 'AC',
+  year: 2024,
+})) {
+  if (!isSigtapLaboratorio(typeof record.PA_PROC_ID === 'string' ? record.PA_PROC_ID : null)) {
+    continue;
+  }
+  const enriched = enrichWithLoinc(record);
+  if (enriched.loinc) {
+    console.log(enriched.loinc.biomarker.display, '→', record.PA_QTDAPR);
+  }
+}
+```
+
+Exemplos completos:
+
+- [`examples/sia-labeled.ts`](examples/sia-labeled.ts) — projeção pt-BR por registro.
+- [`examples/sia-biomarcadores.ts`](examples/sia-biomarcadores.ts) — agregação por biomarcador LOINC.
 
 ### Terminologia LOINC ↔ TUSS ↔ SIGTAP
 
@@ -315,9 +414,12 @@ for await (const record of readDbcRecords(bytes)) {
 
 ## Datasets
 
-**Atual:** CNES (Cadastro Nacional de Estabelecimentos de Saúde).
+**Atual:**
 
-**Roadmap:** SIA-SUS (Sistema de Informações Ambulatoriais) — o dataset aderente a plataformas de acompanhamento de biomarcadores, porque contém todos os exames laboratoriais faturados pelo SUS via códigos **SIGTAP**.
+- **CNES** (Cadastro Nacional de Estabelecimentos de Saúde) — subdatasets ST e PF.
+- **SIA-PA** (Produção Ambulatorial) — procedimentos faturados ao SUS, com filtro opt-in para exames laboratoriais (SIGTAP grupo 02.02) e enriquecimento LOINC. Schema vintage 2008+.
+
+**Roadmap:** demais subdatasets SIA (BI, APACs AM/AN/AQ/AR/AB/ABO/ACF/ATD, RAAS-PS/AD, IMP), SIH (Internações Hospitalares), SIM (Mortalidade), SINASC (Nascidos Vivos) — conforme demanda real.
 
 ## Terminologia LOINC ↔ TUSS ↔ SIGTAP
 
