@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseArgs, UsageError } from './args.js';
 import { CNES_USAGE, runCnes } from './commands/cnes.js';
+import { runSia, SIA_USAGE } from './commands/sia.js';
 
 const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
 export const VERSION = (JSON.parse(readFileSync(pkgPath, 'utf8')) as { version: string }).version;
@@ -21,6 +22,7 @@ Uso:
 
 Comandos:
   cnes     Top tipos de estabelecimento de saúde (CNES-ST).
+  sia      SIA-PA (Produção Ambulatorial) — procedimentos faturados ao SUS.
 
 Globais:
   -h, --help        Mostra esta ajuda (ou ajuda do comando).
@@ -64,6 +66,10 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     case 'cnes':
       if (wantsHelp) return { message: CNES_USAGE };
       await runCnes(args);
+      return {};
+    case 'sia':
+      if (wantsHelp) return { message: SIA_USAGE };
+      await runSia(args);
       return {};
     default:
       if (command.startsWith('-')) {
