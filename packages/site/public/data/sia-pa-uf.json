@@ -1,0 +1,458 @@
+[
+  {
+    "competencia": "2024-01",
+    "loinc": "2157-6",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 8765.76,
+    "volumeExames": 2382
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "5792-7",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 39558.55,
+    "volumeExames": 21383
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1988-5",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 8519.25,
+    "volumeExames": 921
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2243-4",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 7216.65,
+    "volumeExames": 711
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "3026-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 22101.48,
+    "volumeExames": 2523
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "3016-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 47944.96,
+    "volumeExames": 5351
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2823-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 12959.25,
+    "volumeExames": 7005
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2161-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 42688.75,
+    "volumeExames": 23075
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "3094-0",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 41859.95,
+    "volumeExames": 22627
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1989-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 46040.04,
+    "volumeExames": 3021
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2885-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 2053.8,
+    "volumeExames": 1467
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1968-7",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 16984.5,
+    "volumeExames": 8450
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2500-7",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 180.9,
+    "volumeExames": 90
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1920-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 45058.17,
+    "volumeExames": 22417
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2857-1",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 44202.64,
+    "volumeExames": 2692
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1759-0",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 3864.65,
+    "volumeExames": 2089
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "777-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 33221.37,
+    "volumeExames": 12169
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "3051-0",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 17550.65,
+    "volumeExames": 2015
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "4548-4",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 29899.44,
+    "volumeExames": 3804
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2324-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 29217.24,
+    "volumeExames": 8324
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "26746-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 6552.6,
+    "volumeExames": 3260
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2991-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 576.84,
+    "volumeExames": 44
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "17861-6",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 8032.7,
+    "volumeExames": 4342
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2276-4",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 39957.17,
+    "volumeExames": 2563
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2458-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 85.8,
+    "volumeExames": 5
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "3024-7",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 47838.4,
+    "volumeExames": 4124
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "5902-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 9044.49,
+    "volumeExames": 3313
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "8098-6",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 1733.16,
+    "volumeExames": 101
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "15067-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 7337.7,
+    "volumeExames": 930
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2986-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 8855.07,
+    "volumeExames": 849
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "3084-1",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 17008.9,
+    "volumeExames": 9194
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "30189-5",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 240.5,
+    "volumeExames": 26
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2039-6",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 1428.45,
+    "volumeExames": 107
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2093-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 29855.3,
+    "volumeExames": 16138
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1742-6",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 44716.47,
+    "volumeExames": 22247
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "6690-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 33404.28,
+    "volumeExames": 12236
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "3040-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 9369,
+    "volumeExames": 4164
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2571-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 75278.97,
+    "volumeExames": 21447
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "6768-6",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 13282.08,
+    "volumeExames": 6608
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2085-9",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 48115.08,
+    "volumeExames": 13708
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2842-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 7277.55,
+    "volumeExames": 717
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2089-1",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 41210.91,
+    "volumeExames": 11741
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "718-7",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 6273,
+    "volumeExames": 4100
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "4679-7",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 311.22,
+    "volumeExames": 114
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "4544-3",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 3981.06,
+    "volumeExames": 2602
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1834-1",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 1234.92,
+    "volumeExames": 82
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2143-6",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 4249.66,
+    "volumeExames": 431
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2839-9",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 6530.58,
+    "volumeExames": 639
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "30341-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 2241.33,
+    "volumeExames": 821
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2498-4",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 4917.51,
+    "volumeExames": 1401
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "10334-1",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 2403,
+    "volumeExames": 180
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "20448-7",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 1769.58,
+    "volumeExames": 174
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "1798-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 11290.5,
+    "volumeExames": 5018
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2132-9",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 36423.6,
+    "volumeExames": 2390
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "2951-2",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 12702.1,
+    "volumeExames": 6866
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "10501-5",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 7570.68,
+    "volumeExames": 844
+  },
+  {
+    "competencia": "2024-01",
+    "loinc": "6833-8",
+    "ufCode": "12",
+    "ufSigla": "AC",
+    "valorAprovadoBRL": 46.25,
+    "volumeExames": 5
+  }
+]

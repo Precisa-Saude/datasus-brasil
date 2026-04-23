@@ -1,0 +1,292 @@
+{
+  "biomarkers": [
+    {
+      "code": "UricAcid",
+      "display": "Ácido Úrico",
+      "loinc": "3084-1"
+    },
+    {
+      "code": "ALT",
+      "display": "Alanina Aminotransferase",
+      "loinc": "1742-6"
+    },
+    {
+      "code": "AFP",
+      "display": "Alfa-Fetoproteína",
+      "loinc": "1834-1"
+    },
+    {
+      "code": "Amylase",
+      "display": "Amilase",
+      "loinc": "1798-8"
+    },
+    {
+      "code": "AntiThyroglobulin",
+      "display": "Anticorpos Anti-Tireoglobulina",
+      "loinc": "8098-6"
+    },
+    {
+      "code": "CEA",
+      "display": "Antígeno Carcinoembrionário",
+      "loinc": "2039-6"
+    },
+    {
+      "code": "PSA",
+      "display": "Antígeno Prostático Específico",
+      "loinc": "2857-1"
+    },
+    {
+      "code": "AST",
+      "display": "Aspartato Aminotransferase",
+      "loinc": "1920-8"
+    },
+    {
+      "code": "BilirubinDirect",
+      "display": "Bilirrubina Direta",
+      "loinc": "1968-7"
+    },
+    {
+      "code": "CA125",
+      "display": "CA-125",
+      "loinc": "10334-1"
+    },
+    {
+      "code": "Calcium",
+      "display": "Cálcio",
+      "loinc": "17861-6"
+    },
+    {
+      "code": "TIBC",
+      "display": "Capacidade de Ligação do Ferro",
+      "loinc": "2500-7"
+    },
+    {
+      "code": "HDL",
+      "display": "Colesterol HDL",
+      "loinc": "2085-9"
+    },
+    {
+      "code": "LDL",
+      "display": "Colesterol LDL",
+      "loinc": "2089-1"
+    },
+    {
+      "code": "Cholesterol",
+      "display": "Colesterol Total",
+      "loinc": "2093-3"
+    },
+    {
+      "code": "WBC",
+      "display": "Contagem de Leucócitos",
+      "loinc": "6690-2"
+    },
+    {
+      "code": "Platelets",
+      "display": "Contagem de Plaquetas",
+      "loinc": "777-3"
+    },
+    {
+      "code": "Cortisol",
+      "display": "Cortisol",
+      "loinc": "2143-6"
+    },
+    {
+      "code": "CK",
+      "display": "Creatina Quinase",
+      "loinc": "2157-6"
+    },
+    {
+      "code": "Creatinine_Urine",
+      "display": "Creatinina Urinária",
+      "loinc": "2161-8"
+    },
+    {
+      "code": "Estradiol",
+      "display": "Estradiol",
+      "loinc": "2243-4"
+    },
+    {
+      "code": "Ferritin",
+      "display": "Ferritina",
+      "loinc": "2276-4"
+    },
+    {
+      "code": "Iron",
+      "display": "Ferro",
+      "loinc": "2498-4"
+    },
+    {
+      "code": "AlkalinePhosphatase",
+      "display": "Fosfatase Alcalina",
+      "loinc": "6768-6"
+    },
+    {
+      "code": "GGT",
+      "display": "Gama-Glutamil Transferase",
+      "loinc": "2324-2"
+    },
+    {
+      "code": "Glucose_Urine",
+      "display": "Glicose na Urina",
+      "loinc": "5792-7"
+    },
+    {
+      "code": "Hct",
+      "display": "Hematócrito",
+      "loinc": "4544-3"
+    },
+    {
+      "code": "Hgb",
+      "display": "Hemoglobina",
+      "loinc": "718-7"
+    },
+    {
+      "code": "HbA1c",
+      "display": "Hemoglobina Glicada",
+      "loinc": "4548-4"
+    },
+    {
+      "code": "FSH",
+      "display": "Hormônio Folículo-Estimulante",
+      "loinc": "15067-2"
+    },
+    {
+      "code": "LH",
+      "display": "Hormônio Luteinizante",
+      "loinc": "10501-5"
+    },
+    {
+      "code": "TSH",
+      "display": "Hormônio Tireoestimulante",
+      "loinc": "3016-3"
+    },
+    {
+      "code": "IgE_E1_CatDander",
+      "display": "IgE E1 Epitélio de Gato",
+      "loinc": "6833-8"
+    },
+    {
+      "code": "IgE_GX1_Grasses",
+      "display": "IgE GX1 Gramíneas",
+      "loinc": "30189-5"
+    },
+    {
+      "code": "IgA",
+      "display": "Imunoglobulina A",
+      "loinc": "2458-8"
+    },
+    {
+      "code": "Insulin",
+      "display": "Insulina",
+      "loinc": "20448-7"
+    },
+    {
+      "code": "Lipase",
+      "display": "Lipase",
+      "loinc": "3040-3"
+    },
+    {
+      "code": "Magnesium_RBC",
+      "display": "Magnésio RBC",
+      "loinc": "26746-8"
+    },
+    {
+      "code": "Potassium",
+      "display": "Potássio",
+      "loinc": "2823-3"
+    },
+    {
+      "code": "Progesterone",
+      "display": "Progesterona",
+      "loinc": "2839-9"
+    },
+    {
+      "code": "Prolactin",
+      "display": "Prolactina",
+      "loinc": "2842-3"
+    },
+    {
+      "code": "CRP",
+      "display": "Proteína C-Reativa",
+      "loinc": "1988-5"
+    },
+    {
+      "code": "TotalProtein",
+      "display": "Proteína Total",
+      "loinc": "2885-2"
+    },
+    {
+      "code": "Albumin_Globulin_Ratio",
+      "display": "Razão Albumina / Globulina",
+      "loinc": "1759-0"
+    },
+    {
+      "code": "Reticulocytes",
+      "display": "Reticulócitos",
+      "loinc": "4679-7"
+    },
+    {
+      "code": "Sodium",
+      "display": "Sódio",
+      "loinc": "2951-2"
+    },
+    {
+      "code": "ProthrombinTime",
+      "display": "Tempo de Protrombina",
+      "loinc": "5902-2"
+    },
+    {
+      "code": "TestosteroneFree",
+      "display": "Testosterona Livre",
+      "loinc": "2991-8"
+    },
+    {
+      "code": "Testosterone",
+      "display": "Testosterona Total",
+      "loinc": "2986-8"
+    },
+    {
+      "code": "T4Total",
+      "display": "Tiroxina",
+      "loinc": "3026-2"
+    },
+    {
+      "code": "T4Free",
+      "display": "Tiroxina Livre",
+      "loinc": "3024-7"
+    },
+    {
+      "code": "Triglycerides",
+      "display": "Triglicerídeos",
+      "loinc": "2571-8"
+    },
+    {
+      "code": "T3Free",
+      "display": "Triiodotironina Livre",
+      "loinc": "3051-0"
+    },
+    {
+      "code": "Urea",
+      "display": "Ureia",
+      "loinc": "3094-0"
+    },
+    {
+      "code": "ESR",
+      "display": "Velocidade de Hemossedimentação",
+      "loinc": "30341-2"
+    },
+    {
+      "code": "VitaminB12",
+      "display": "Vitamina B12",
+      "loinc": "2132-9"
+    },
+    {
+      "code": "VitaminD",
+      "display": "Vitamina D",
+      "loinc": "1989-3"
+    }
+  ],
+  "competencias": ["2024-01"],
+  "geradoEm": "2026-04-23T18:57:25.238Z",
+  "year": 2024
+}
