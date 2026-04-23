@@ -12,23 +12,23 @@ importers:
         specifier: ^20.5.0
         version: 20.5.0(@types/node@22.19.17)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.7.3)
       '@precisa-saude/agent-instructions':
-        specifier: ^1.1.1
-        version: 1.1.1
+        specifier: ^1.5.0
+        version: 1.5.0
       '@precisa-saude/commitlint-config':
-        specifier: ^1.1.1
-        version: 1.1.1(@commitlint/cli@20.5.0(@types/node@22.19.17)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.7.3))
+        specifier: ^1.5.0
+        version: 1.5.0(@commitlint/cli@20.5.0(@types/node@22.19.17)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.7.3))
       '@precisa-saude/eslint-config':
-        specifier: ^1.1.1
-        version: 1.1.1(eslint@10.2.1(jiti@2.6.1))(jiti@2.6.1)(prettier@3.8.3)(tailwindcss@4.2.4)(typescript@5.7.3)
+        specifier: ^1.5.0
+        version: 1.5.0(eslint@10.2.1(jiti@2.6.1))(jiti@2.6.1)(prettier@3.8.3)(tailwindcss@4.2.4)(typescript@5.7.3)
       '@precisa-saude/prettier-config':
-        specifier: ^1.1.1
-        version: 1.1.1(prettier-plugin-packagejson@3.0.2(prettier@3.8.3))(prettier@3.8.3)
+        specifier: ^1.5.0
+        version: 1.5.0(prettier-plugin-packagejson@3.0.2(prettier@3.8.3))(prettier@3.8.3)
       '@precisa-saude/tsconfig':
-        specifier: ^1.1.1
-        version: 1.1.1(typescript@5.7.3)
+        specifier: ^1.5.0
+        version: 1.5.0(typescript@5.7.3)
       '@precisa-saude/worktree-cli':
-        specifier: ^1.1.1
-        version: 1.1.1
+        specifier: ^1.5.0
+        version: 1.5.0
       '@semantic-release/changelog':
         specifier: ^6.0.3
         version: 6.0.3(semantic-release@25.0.3(typescript@5.7.3))
@@ -754,25 +754,25 @@ packages:
     resolution: {integrity: sha512-h104Kh26rR8tm+a3Qkc5S4VLYint3FE48as7+/5oCEcKR2idC/pF1G6AhIXKI+eHPJa/3J9i5z0Al47IeGHPkA==}
     engines: {node: '>=12'}
 
-  '@precisa-saude/agent-instructions@1.1.1':
-    resolution: {integrity: sha512-3NhyDKAh2Yqshv9glWg0nmTA6Mzu8UHjaYhppCmG/fAZvBVYwLkRzsjiFn7B8SpbLKLD/F5LoKs6sy95wi2gww==}
+  '@precisa-saude/agent-instructions@1.5.0':
+    resolution: {integrity: sha512-seuH8WydA1znxoFRy+W4UnPLyMwVjomhr7buhK9chhDGN1zfC2+SWMRWnGJSaLVI91imzP0Ru2k+HdhsgzV4ig==}
     engines: {node: '>=22.0.0'}
 
-  '@precisa-saude/commitlint-config@1.1.1':
-    resolution: {integrity: sha512-VfgVtmQQsCv15yc9Jy6Ewh1iOkoT1ITknBZGRnPMe6JUquCU/HtUoSN+RJFuey3EjGllRhjZet+rFioUjB682g==}
+  '@precisa-saude/commitlint-config@1.5.0':
+    resolution: {integrity: sha512-iEHxqAYK5/mxgYLM5FhfGXeTDc1j57BzCnRdPKKu0J9mMmohLxJhpcccdh7QTTeIHA6bpPC2DUeD7l0cM9srqw==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@commitlint/cli': '>=19'
 
-  '@precisa-saude/eslint-config@1.1.1':
-    resolution: {integrity: sha512-xOziaagRXEFEGmYfOVYGSXNiU04cBO2YdAr9psHpneJKKBVHQ52rviQ8eWGCwo4x6z8Wg49GakgBp3C0ikTqTw==}
+  '@precisa-saude/eslint-config@1.5.0':
+    resolution: {integrity: sha512-PxA3bIjy3X++mIvfK0ANggYcYyLRU2cv2NUBLZle9jgKikOUpta2UJa6llChOVTCwhpDQLv1Dt7qgtmOJ/38TQ==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
       prettier: ^3.0.0
 
-  '@precisa-saude/prettier-config@1.1.1':
-    resolution: {integrity: sha512-YobGkU8NoXFXs2MpSCRphTL8HLbviOVy2HDKUBDcvpp64SHysEIAIMrr0OS7OOl8bDYnQvam/oH4S0sJ7QvUdg==}
+  '@precisa-saude/prettier-config@1.5.0':
+    resolution: {integrity: sha512-0ebjvA1MEWsrnCdWNyk26QkyqFxXthyXTNCabc3oB1H9kx/zrtDbsMQHQRIjIRDm6qL5HpnKUEB4WfTr564/1Q==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       prettier: ^3.0.0
@@ -782,14 +782,14 @@ packages:
       prettier-plugin-tailwindcss:
         optional: true
 
-  '@precisa-saude/tsconfig@1.1.1':
-    resolution: {integrity: sha512-S9MKSKLahRbKcXHDD3BjkLcI1jBcSR8BysZcgA85l7/uoxTPlJnOoM0m1Ozm/yzwMbArYPcOqzk2jljUOe7NYg==}
+  '@precisa-saude/tsconfig@1.5.0':
+    resolution: {integrity: sha512-eA4/UFu9NLEyctBZzyvOpzrvUS6ltde241KsnZcsnFBeD7KDDaKxlcN4WIZFQr17ZuLDls6XhThL01cGkcg04g==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       typescript: '>=5.0.0'
 
-  '@precisa-saude/worktree-cli@1.1.1':
-    resolution: {integrity: sha512-ec81RuJly3y+hIH2nPNbgWzYmRH7GECtT0+ax9erFcL0RPEAShwmy3hXdoHHUBZkcqsD2V0bNPHeJGbnlHu6Cw==}
+  '@precisa-saude/worktree-cli@1.5.0':
+    resolution: {integrity: sha512-usYs4jpGAZvIwt3pBkEu89cdBa2k4UkDPJbnfSclw0JLzYGd4utrItSxR4raMlUDyzVKDdJp/THcwcF8r4ztOA==}
     engines: {node: '>=22.0.0'}
     hasBin: true
 
@@ -4204,14 +4204,14 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@precisa-saude/agent-instructions@1.1.1': {}
+  '@precisa-saude/agent-instructions@1.5.0': {}
 
-  '@precisa-saude/commitlint-config@1.1.1(@commitlint/cli@20.5.0(@types/node@22.19.17)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.7.3))':
+  '@precisa-saude/commitlint-config@1.5.0(@commitlint/cli@20.5.0(@types/node@22.19.17)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.7.3))':
     dependencies:
       '@commitlint/cli': 20.5.0(@types/node@22.19.17)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.7.3)
       '@commitlint/config-conventional': 20.5.0
 
-  '@precisa-saude/eslint-config@1.1.1(eslint@10.2.1(jiti@2.6.1))(jiti@2.6.1)(prettier@3.8.3)(tailwindcss@4.2.4)(typescript@5.7.3)':
+  '@precisa-saude/eslint-config@1.5.0(eslint@10.2.1(jiti@2.6.1))(jiti@2.6.1)(prettier@3.8.3)(tailwindcss@4.2.4)(typescript@5.7.3)':
     dependencies:
       '@eslint/js': 9.39.4
       '@html-eslint/eslint-plugin': 0.52.1(eslint@10.2.1(jiti@2.6.1))(jiti@2.6.1)
@@ -4237,16 +4237,16 @@ snapshots:
       - tailwindcss
       - typescript
 
-  '@precisa-saude/prettier-config@1.1.1(prettier-plugin-packagejson@3.0.2(prettier@3.8.3))(prettier@3.8.3)':
+  '@precisa-saude/prettier-config@1.5.0(prettier-plugin-packagejson@3.0.2(prettier@3.8.3))(prettier@3.8.3)':
     dependencies:
       prettier: 3.8.3
       prettier-plugin-packagejson: 3.0.2(prettier@3.8.3)
 
-  '@precisa-saude/tsconfig@1.1.1(typescript@5.7.3)':
+  '@precisa-saude/tsconfig@1.5.0(typescript@5.7.3)':
     dependencies:
       typescript: 5.7.3
 
-  '@precisa-saude/worktree-cli@1.1.1':
+  '@precisa-saude/worktree-cli@1.5.0':
     dependencies:
       chalk: 5.6.2
       commander: 12.1.0
