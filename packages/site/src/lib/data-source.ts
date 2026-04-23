@@ -10,5 +10,11 @@ export const DATA_BASE_URL =
   'https://precisa-saude-datasus-brasil.s3.sa-east-1.amazonaws.com';
 
 export const PMTILES_URL = `${DATA_BASE_URL}/geo/brasil.pmtiles`;
-export const PARQUET_GLOB = `${DATA_BASE_URL}/parquet/**/*.parquet`;
 export const MANIFEST_URL = `${DATA_BASE_URL}/manifest/index.json`;
+
+// Camada consolidada pelo `consolidate-parquet.ts` pra minimizar GETs
+// S3: um arquivo nacional pequeno + um por UF (18 anos inline).
+export const UF_TOTALS_PARQUET = `${DATA_BASE_URL}/parquet-opt/uf-totals.parquet`;
+export function ufPartitionUrl(ufSigla: string): string {
+  return `${DATA_BASE_URL}/parquet-opt/uf=${ufSigla}/part.parquet`;
+}

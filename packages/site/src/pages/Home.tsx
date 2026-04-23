@@ -51,33 +51,48 @@ export default function Home() {
   // Bootstrap: manifesto + primeiro query de UF.
   useEffect(() => {
     loadManifest().then(
-      async (m) => {
+      (m) => {
         setManifest(m);
         setLoinc(m.biomarkers[0]?.loinc ?? null);
         setCompetencia(m.competencias[m.competencias.length - 1] ?? null);
-        try {
-          const rows = await fetchUfAggregates(m.years);
-          setUfData(rows);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : String(e));
-        }
       },
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
   }, []);
 
+  // Sempre que a competência muda, recarrega o agregado nacional
+  // daquele mês. Um único GET no `uf-totals.parquet` com filtro.
+  useEffect(() => {
+    if (!competencia) return;
+    fetchUfAggregates(competencia).then(
+      (rows) => setUfData(rows),
+      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    );
+  }, [competencia]);
+
+  // Drill-down: carrega os municípios da UF para a competência atual.
   const handleUfClick = useCallback(
     (ufSigla: string) => {
-      if (!manifest) return;
+      if (!competencia) return;
       setSelectedUf(ufSigla);
       setMunicipioData(null);
-      fetchMunicipioAggregates(ufSigla, manifest.years).then(
+      fetchMunicipioAggregates(ufSigla, competencia).then(
         (rows) => setMunicipioData(rows),
         (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
       );
     },
-    [manifest],
+    [competencia],
   );
+
+  // Quando o usuário troca a competência dentro do drill-down,
+  // refazemos a query municipal daquela UF.
+  useEffect(() => {
+    if (!selectedUf || !competencia) return;
+    fetchMunicipioAggregates(selectedUf, competencia).then(
+      (rows) => setMunicipioData(rows),
+      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    );
+  }, [selectedUf, competencia]);
 
   const handleBackToBrazil = useCallback(() => {
     setSelectedUf(null);

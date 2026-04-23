@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 #
-# Publica `build/parquet/**` + `build/geo/brasil.pmtiles` + manifest
-# no bucket S3 público do projeto (`precisa-saude-datasus-brasil`, sa-east-1).
+# Publica `build/parquet-opt/**` + `build/geo/brasil.pmtiles` +
+# manifest no bucket S3 público do projeto
+# (`precisa-saude-datasus-brasil`, sa-east-1).
 #
-# Convenção de URL:
+# Convenção de URL (o site lê só do parquet-opt — consolidado):
 #   https://precisa-saude-datasus-brasil.s3.sa-east-1.amazonaws.com/
 #     geo/brasil.pmtiles
-#     parquet/ano=YYYY/uf=XX/part.parquet
+#     parquet-opt/uf-totals.parquet            ← agregado nacional
+#     parquet-opt/uf=XX/part.parquet           ← UF consolidada (todos anos)
 #     manifest/index.json
 #
 # Cache-Control generoso (1 ano immutable) pra Parquet + PMTiles;
@@ -26,12 +28,11 @@ if [[ -f "$BUILD_DIR/geo/brasil.pmtiles" ]]; then
     --cache-control "public, max-age=31536000, immutable"
 fi
 
-echo "→ upload Parquet particionado"
-if [[ -d "$BUILD_DIR/parquet" ]]; then
-  aws s3 sync "$BUILD_DIR/parquet" "s3://$BUCKET/parquet" \
+echo "→ upload Parquet consolidado (parquet-opt/)"
+if [[ -d "$BUILD_DIR/parquet-opt" ]]; then
+  aws s3 sync "$BUILD_DIR/parquet-opt" "s3://$BUCKET/parquet-opt" \
     --delete \
-    --cache-control "public, max-age=31536000, immutable" \
-    --exclude "*.ndjson"
+    --cache-control "public, max-age=31536000, immutable"
 fi
 
 echo "→ upload manifest"

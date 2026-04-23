@@ -1,4 +1,4 @@
-import { PARQUET_GLOB } from './data-source';
+import { UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
 import { queryAll } from './duckdb';
 
 export interface UfAggregateRow {
@@ -20,46 +20,39 @@ export interface MunicipioAggregateRow {
 }
 
 /**
- * Agrega por UF × LOINC × competência pra uma faixa de anos. Roda no
- * DuckDB WASM: `read_parquet` com `hive_partitioning=1` dá pushdown
- * de partição (filtro `ano BETWEEN` só baixa os Parquets daquela
- * faixa).
+ * Agregado nacional para uma única competência (mês), vindo do Parquet
+ * consolidado `uf-totals.parquet`. Um único arquivo pequeno = **um GET**
+ * S3 por query, em vez de varrer todas as partições anuais.
  */
-export async function fetchUfAggregates(years: readonly number[]): Promise<UfAggregateRow[]> {
-  if (years.length === 0) return [];
-  const min = Math.min(...years);
-  const max = Math.max(...years);
+export async function fetchUfAggregates(competencia: string): Promise<UfAggregateRow[]> {
   return queryAll<UfAggregateRow>(`
-    SELECT
-      competencia,
-      loinc,
-      ufSigla,
-      SUM(volumeExames) AS volumeExames,
-      SUM(valorAprovadoBRL) AS valorAprovadoBRL
-    FROM read_parquet('${PARQUET_GLOB}', hive_partitioning=1)
-    WHERE ano BETWEEN ${min} AND ${max}
-    GROUP BY competencia, loinc, ufSigla
+    SELECT competencia, loinc, ufSigla, volumeExames, valorAprovadoBRL
+    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    WHERE competencia = '${competencia.replace(/'/g, "''")}'
   `);
 }
 
-/** Todos os registros municipais de uma UF × faixa de anos. */
+/**
+ * Dados municipais de uma UF para uma competência específica. Usa o
+ * Parquet consolidado por UF (18 anos num só arquivo); pushdown de
+ * filtro por competência via row-group statistics do Parquet evita
+ * ler row-groups de outras datas.
+ */
 export async function fetchMunicipioAggregates(
   ufSigla: string,
-  years: readonly number[],
+  competencia: string,
 ): Promise<MunicipioAggregateRow[]> {
-  if (years.length === 0) return [];
-  const min = Math.min(...years);
-  const max = Math.max(...years);
+  const safeUf = ufSigla.replace(/'/g, "''");
   return queryAll<MunicipioAggregateRow>(`
     SELECT
       competencia,
       loinc,
       municipioCode,
       municipioNome,
-      ufSigla,
+      '${safeUf}' AS ufSigla,
       volumeExames,
       valorAprovadoBRL
-    FROM read_parquet('${PARQUET_GLOB}', hive_partitioning=1)
-    WHERE ano BETWEEN ${min} AND ${max} AND uf = '${ufSigla.replace(/'/g, "''")}'
+    FROM read_parquet('${ufPartitionUrl(ufSigla)}')
+    WHERE competencia = '${competencia.replace(/'/g, "''")}'
   `);
 }

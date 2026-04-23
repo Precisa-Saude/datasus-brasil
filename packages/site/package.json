@@ -6,6 +6,7 @@
   "scripts": {
     "aggregate": "tsx scripts/aggregate-sia-parquet.ts",
     "build": "tsc && vite build",
+    "build:consolidate": "tsx scripts/consolidate-parquet.ts",
     "build:geo-tiles": "bash scripts/build-geo-tiles.sh",
     "build:parquet-index": "tsx scripts/build-parquet-index.ts",
     "dev": "vite",
