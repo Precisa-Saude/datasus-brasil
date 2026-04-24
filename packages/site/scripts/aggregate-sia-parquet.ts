@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 import { findMunicipio, sigtapToLoinc } from '@precisa-saude/datasus-sdk';
 import duckdb from 'duckdb';
 
-const DEFAULT_SOURCE_URL = 'https://datasus-parquet.s3.sa-east-1.amazonaws.com';
+const DEFAULT_SOURCE_URL = 'https://dfdu08vi8wsus.cloudfront.net';
 
 interface Cli {
   outDir: string;
