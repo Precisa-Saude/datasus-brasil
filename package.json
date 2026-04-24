@@ -1,6 +1,6 @@
 {
   "name": "datasus-viz",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Toolkit TS/JS para microdados abertos do DATASUS — decoder DBC puro JavaScript, cliente FTP, schemas tipados",
   "homepage": "https://github.com/Precisa-Saude/datasus-viz",

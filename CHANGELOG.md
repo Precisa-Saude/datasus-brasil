@@ -1,3 +1,13 @@
+## [1.2.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.1.0...v1.2.0) (2026-04-24)
+
+### Features
+
+* **site:** geo-visualização de biomarcadores com Mapbox + SIA-PA ([#10](https://github.com/Precisa-Saude/datasus-viz/issues/10)) ([1f632ed](https://github.com/Precisa-Saude/datasus-viz/commit/1f632ede79c7c3ed4a465d81b3e8e9047fccaa18)), closes [#f3f0ff](https://github.com/Precisa-Saude/datasus-viz/issues/f3f0ff)
+
+### Chores
+
+* cleanup pós-split — remover packages extraídos + rename pra datasus-viz ([#11](https://github.com/Precisa-Saude/datasus-viz/issues/11)) ([495b695](https://github.com/Precisa-Saude/datasus-viz/commit/495b695c50d6dc9e0e465908d4ab59537c27e832))
+
 ## [1.1.0](https://github.com/Precisa-Saude/datasus-brasil/compare/v1.0.0...v1.1.0) (2026-04-23)
 
 ### Features
