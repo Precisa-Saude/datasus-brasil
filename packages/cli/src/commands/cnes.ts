@@ -8,8 +8,8 @@
  *   --raw      → emite registros brutos do DATASUS (códigos)
  */
 
-import type { CnesEstabelecimentoRecord } from '@precisa-saude/datasus';
-import { cnes, labelEstabelecimento, labelTipoUnidade, topN } from '@precisa-saude/datasus';
+import type { CnesEstabelecimentoRecord } from '@precisa-saude/datasus-sdk';
+import { cnes, labelEstabelecimento, labelTipoUnidade, topN } from '@precisa-saude/datasus-sdk';
 
 import type { ParsedArgs } from '../args.js';
 import { optInt, requireInt, requireOpt } from '../args.js';

@@ -4,5 +4,5 @@ contact_links:
     url: 'mailto:security@precisa-saude.com.br'
     about: Report security issues privately — see SECURITY.md
   - name: General questions and discussions
-    url: 'https://github.com/Precisa-Saude/datasus-brasil/discussions'
+    url: 'https://github.com/Precisa-Saude/datasus-viz/discussions'
     about: Ask questions, share ideas, or discuss

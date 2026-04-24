@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "name": "datasus-brasil",
+  "name": "datasus-viz",
   "owner": "Precisa-Saude",
   "visibility": "oss",
-  "hasSite": false,
+  "hasSite": true,
   "hasPackages": true,
   "publishesToNpm": true,
-  "commitScopes": ["dbc", "core", "cli", "docs", "ci", "deps", "lint", "config"],
+  "commitScopes": ["site", "cli", "docs", "ci", "deps", "lint", "config"],
   "contactEmails": {
     "security": "security@precisa-saude.com.br",
     "conduct": "conduct@precisa-saude.com.br"

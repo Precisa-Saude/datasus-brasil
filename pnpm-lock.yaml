@@ -86,9 +86,9 @@ importers:
 
   examples:
     dependencies:
-      '@precisa-saude/datasus':
-        specifier: workspace:*
-        version: link:../packages/core
+      '@precisa-saude/datasus-sdk':
+        specifier: ^2.0.1
+        version: 2.0.1
     devDependencies:
       tsx:
         specifier: ^4.21.0
@@ -96,9 +96,9 @@ importers:
 
   packages/cli:
     dependencies:
-      '@precisa-saude/datasus':
-        specifier: workspace:*
-        version: link:../core
+      '@precisa-saude/datasus-sdk':
+        specifier: ^2.0.1
+        version: 2.0.1
     devDependencies:
       tsup:
         specifier: ^8.3.5
@@ -106,37 +106,6 @@ importers:
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
-      typescript:
-        specifier: ~5.7.3
-        version: 5.7.3
-      vitest:
-        specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.17)
-
-  packages/core:
-    dependencies:
-      '@precisa-saude/datasus-dbc':
-        specifier: workspace:*
-        version: link:../dbc
-      basic-ftp:
-        specifier: ^5.3.0
-        version: 5.3.0
-    devDependencies:
-      tsup:
-        specifier: ^8.3.5
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.10)(tsx@4.21.0)(typescript@5.7.3)(yaml@2.8.3)
-      typescript:
-        specifier: ~5.7.3
-        version: 5.7.3
-      vitest:
-        specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.17)
-
-  packages/dbc:
-    devDependencies:
-      tsup:
-        specifier: ^8.3.5
-        version: 8.5.1(jiti@2.6.1)(postcss@8.5.10)(tsx@4.21.0)(typescript@5.7.3)(yaml@2.8.3)
       typescript:
         specifier: ~5.7.3
         version: 5.7.3
@@ -763,6 +732,14 @@ packages:
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@commitlint/cli': '>=19'
+
+  '@precisa-saude/datasus-dbc@1.1.0':
+    resolution: {integrity: sha512-M3PJuBxuyGKgwr3xTVnnaqN91MZbgPYxK4pyTeZeb/YvT/hIipL5ZMVNvkrIuijL1zW83FdYeUbmbg5uyXYIZQ==}
+    engines: {node: '>=22'}
+
+  '@precisa-saude/datasus-sdk@2.0.1':
+    resolution: {integrity: sha512-z+Jc6iJom94oaN3+p/QQd1LUmUZfnM+NVTQfQw3TeC4DUc4aI+Zon1IP+d9zqoEpu0EJOZPd1DUiUL10WVOSJQ==}
+    engines: {node: '>=22'}
 
   '@precisa-saude/eslint-config@1.5.0':
     resolution: {integrity: sha512-PxA3bIjy3X++mIvfK0ANggYcYyLRU2cv2NUBLZle9jgKikOUpta2UJa6llChOVTCwhpDQLv1Dt7qgtmOJ/38TQ==}
@@ -4210,6 +4187,13 @@ snapshots:
     dependencies:
       '@commitlint/cli': 20.5.0(@types/node@22.19.17)(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)(typescript@5.7.3)
       '@commitlint/config-conventional': 20.5.0
+
+  '@precisa-saude/datasus-dbc@1.1.0': {}
+
+  '@precisa-saude/datasus-sdk@2.0.1':
+    dependencies:
+      '@precisa-saude/datasus-dbc': 1.1.0
+      basic-ftp: 5.3.0
 
   '@precisa-saude/eslint-config@1.5.0(eslint@10.2.1(jiti@2.6.1))(jiti@2.6.1)(prettier@3.8.3)(tailwindcss@4.2.4)(typescript@5.7.3)':
     dependencies:

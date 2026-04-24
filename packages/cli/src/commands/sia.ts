@@ -13,7 +13,7 @@
  *                        tiver equivalência no catálogo
  */
 
-import type { SiaProducaoAmbulatorialRecord } from '@precisa-saude/datasus';
+import type { SiaProducaoAmbulatorialRecord } from '@precisa-saude/datasus-sdk';
 import {
   enrichWithLoinc,
   isSigtapLaboratorio,
@@ -22,7 +22,7 @@ import {
   sia,
   sigtapToLoinc,
   topN,
-} from '@precisa-saude/datasus';
+} from '@precisa-saude/datasus-sdk';
 
 import type { ParsedArgs } from '../args.js';
 import { optInt, requireInt, requireOpt } from '../args.js';
