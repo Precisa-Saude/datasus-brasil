@@ -2,9 +2,9 @@
 
 ## Obtendo Ajuda
 
-- **Reportar bugs**: [GitHub Issues](https://github.com/Precisa-Saude/datasus-brasil/issues)
-- **Solicitar funcionalidades**: [GitHub Issues](https://github.com/Precisa-Saude/datasus-brasil/issues)
-- **Perguntas e discussões**: [GitHub Discussions](https://github.com/Precisa-Saude/datasus-brasil/discussions)
+- **Reportar bugs**: [GitHub Issues](https://github.com/Precisa-Saude/datasus-viz/issues)
+- **Solicitar funcionalidades**: [GitHub Issues](https://github.com/Precisa-Saude/datasus-viz/issues)
+- **Perguntas e discussões**: [GitHub Discussions](https://github.com/Precisa-Saude/datasus-viz/discussions)
 
 ## Antes de Abrir uma Issue
 

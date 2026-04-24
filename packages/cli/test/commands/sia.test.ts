@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseArgs, UsageError } from '../../src/args.js';
 import { runSia } from '../../src/commands/sia.js';
 
-vi.mock('@precisa-saude/datasus', async (importActual) => {
-  const actual = await importActual<typeof import('@precisa-saude/datasus')>();
+vi.mock('@precisa-saude/datasus-sdk', async (importActual) => {
+  const actual = await importActual<typeof import('@precisa-saude/datasus-sdk')>();
   return {
     ...actual,
     sia: {
@@ -15,7 +15,7 @@ vi.mock('@precisa-saude/datasus', async (importActual) => {
   };
 });
 
-const { sia } = await import('@precisa-saude/datasus');
+const { sia } = await import('@precisa-saude/datasus-sdk');
 
 async function* fromArray<T>(items: T[]): AsyncIterable<T> {
   for (const item of items) yield item;
@@ -102,7 +102,9 @@ describe('runSia', () => {
 
   it('--enrich-loinc anexa biomarker e loinc ao agregado', async () => {
     // Pega um SIGTAP do catálogo real para garantir o enrichment
-    const real = (await import('@precisa-saude/datasus')).listBiomarkers().find((b) => b.sigtap);
+    const real = (await import('@precisa-saude/datasus-sdk'))
+      .listBiomarkers()
+      .find((b) => b.sigtap);
     expect(real).toBeDefined();
 
     vi.mocked(sia.streamProducaoAmbulatorial).mockReturnValue(

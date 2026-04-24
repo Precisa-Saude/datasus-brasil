@@ -1,13 +1,13 @@
 {
-  "name": "datasus-brasil",
+  "name": "datasus-viz",
   "version": "1.1.0",
   "private": true,
   "description": "Toolkit TS/JS para microdados abertos do DATASUS — decoder DBC puro JavaScript, cliente FTP, schemas tipados",
-  "homepage": "https://github.com/Precisa-Saude/datasus-brasil",
-  "bugs": "https://github.com/Precisa-Saude/datasus-brasil/issues",
+  "homepage": "https://github.com/Precisa-Saude/datasus-viz",
+  "bugs": "https://github.com/Precisa-Saude/datasus-viz/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Precisa-Saude/datasus-brasil.git"
+    "url": "https://github.com/Precisa-Saude/datasus-viz.git"
   },
   "license": "Apache-2.0",
   "type": "module",
@@ -66,8 +66,8 @@
     "pnpm": ">=9"
   },
   "worktree": {
-    "directoryPrefix": "datasus-brasil",
-    "portRegistry": "/tmp/datasus-brasil-worktree-ports.json",
+    "directoryPrefix": "datasus-viz",
+    "portRegistry": "/tmp/datasus-viz-worktree-ports.json",
     "buildCommand": "pnpm turbo run build --filter=./packages/*",
     "services": [
       {
@@ -75,7 +75,7 @@
         "mainPort": 4322,
         "featureBase": 4332,
         "increment": 10,
-        "pnpmFilter": "@datasus-brasil/site",
+        "pnpmFilter": "@datasus-viz/site",
         "logPrefix": "datasus-site"
       }
     ]

@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UsageError } from '../src/args.js';
 import { dispatch, ROOT_USAGE, VERSION } from '../src/main.js';
 
-vi.mock('@precisa-saude/datasus', async (importActual) => {
-  const actual = await importActual<typeof import('@precisa-saude/datasus')>();
+vi.mock('@precisa-saude/datasus-sdk', async (importActual) => {
+  const actual = await importActual<typeof import('@precisa-saude/datasus-sdk')>();
   return {
     ...actual,
     cnes: {
@@ -16,7 +16,7 @@ vi.mock('@precisa-saude/datasus', async (importActual) => {
   };
 });
 
-const { cnes } = await import('@precisa-saude/datasus');
+const { cnes } = await import('@precisa-saude/datasus-sdk');
 
 async function* empty<T>(): AsyncIterable<T> {
   // nada a emitir
