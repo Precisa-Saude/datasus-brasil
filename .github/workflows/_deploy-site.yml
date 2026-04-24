@@ -19,6 +19,10 @@ on:
         description: 'Output directory to deploy (default: site/dist)'
         type: string
         default: 'site/dist'
+      site_source_path:
+        description: 'Path prefix treated as site source files for change detection (default: site/)'
+        type: string
+        default: 'site/'
 
 jobs:
   build-site:
@@ -57,7 +61,8 @@ jobs:
               );
               filenames = pages.flatMap(p => (p.files ?? []).map(f => f.filename));
             }
-            const siteChanged = filenames.some(f => f.startsWith('site/'));
+            const sourcePath = `${{ inputs.site_source_path }}`;
+            const siteChanged = filenames.some(f => f.startsWith(sourcePath));
             core.setOutput('site_changed', siteChanged ? 'true' : 'false');
 
       - uses: actions/checkout@v6

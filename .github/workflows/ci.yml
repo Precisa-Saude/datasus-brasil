@@ -79,4 +79,5 @@ jobs:
     with:
       project_name: 'datasus-viz'
       site_filter: '@datasus-viz/site'
+      site_source_path: 'packages/site/'
     secrets: inherit
