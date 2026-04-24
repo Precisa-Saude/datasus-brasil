@@ -19,7 +19,7 @@
  * mapeado. `municipioCode` mantido em 6 dígitos (sem DV, como o SIA).
  */
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,11 +33,31 @@ import {
 import duckdb from 'duckdb';
 
 interface Cli {
+  fromPending: null | string;
   outDir: string;
   throttleMs: number;
   ufs: string[];
   yearPauseMs: number;
   years: number[];
+}
+
+interface PendingEntry {
+  ftpPath?: string;
+  month: number;
+  uf: string;
+  year: number;
+}
+
+interface PendingFile {
+  detectedAt: string;
+  latestCompetencia: string;
+  pending: PendingEntry[];
+}
+
+interface UfYearMonth {
+  month: number;
+  uf: string;
+  year: number;
 }
 
 const ALL_UFS = [
@@ -82,7 +102,8 @@ function parseArgs(argv: string[]): Cli {
   };
 
   const rawUfs = get('--ufs', 'AC').toUpperCase();
-  const ufs = rawUfs === 'ALL' ? ALL_UFS : rawUfs.split(',').map((s) => s.trim());
+  // Determinismo: UFs sempre ordenadas alfabeticamente.
+  const ufs = (rawUfs === 'ALL' ? ALL_UFS : rawUfs.split(',').map((s) => s.trim())).sort();
   const yearsArg = get('--years', '2024');
   const years: number[] = [];
   for (const chunk of yearsArg.split(',')) {
@@ -91,17 +112,44 @@ function parseArgs(argv: string[]): Cli {
     const end = Number.isInteger(b) ? b : a;
     for (let y = a; y <= end!; y += 1) years.push(y);
   }
+  years.sort((x, y) => x - y);
   const siteRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
   const outDir = resolve(siteRoot, get('--out', 'build/parquet'));
   const throttleMs = Number(get('--throttle-ms', '500'));
   const yearPauseMs = Number(get('--year-pause-ms', '5000'));
+  const fromPendingArg = argv.indexOf('--from-pending');
+  // Aceita `--from-pending` (caminho default) ou `--from-pending <path>`.
+  const fromPending =
+    fromPendingArg === -1
+      ? null
+      : argv[fromPendingArg + 1] && !argv[fromPendingArg + 1]!.startsWith('--')
+        ? resolve(siteRoot, argv[fromPendingArg + 1]!)
+        : resolve(siteRoot, '..', '..', 'state/pending.json');
   if (!Number.isFinite(throttleMs) || throttleMs < 0) {
     throw new Error(`--throttle-ms inválido: ${throttleMs}`);
   }
   if (!Number.isFinite(yearPauseMs) || yearPauseMs < 0) {
     throw new Error(`--year-pause-ms inválido: ${yearPauseMs}`);
   }
-  return { outDir, throttleMs, ufs, yearPauseMs, years };
+  return { fromPending, outDir, throttleMs, ufs, yearPauseMs, years };
+}
+
+function loadPending(path: string): UfYearMonth[] {
+  if (!existsSync(path)) {
+    throw new Error(`--from-pending: arquivo não encontrado em ${path}`);
+  }
+  const raw = JSON.parse(readFileSync(path, 'utf8')) as PendingFile;
+  const list = (raw.pending ?? []).map((p) => ({
+    month: p.month,
+    uf: p.uf.toUpperCase(),
+    year: p.year,
+  }));
+  // Determinismo: ordena (uf, year, month).
+  return list.sort((a, b) => {
+    if (a.uf !== b.uf) return a.uf.localeCompare(b.uf);
+    if (a.year !== b.year) return a.year - b.year;
+    return a.month - b.month;
+  });
 }
 
 function sleep(ms: number): Promise<void> {
@@ -182,9 +230,14 @@ async function writePartition(cli: Cli, ufSigla: string, year: number, rows: Row
 
   await new Promise<void>((resolve2, reject) => {
     const db = new duckdb.Database(':memory:');
+    // Determinismo: ORDER BY fixo, row_group_size explícito. Produz
+    // Parquet byte-a-byte idêntico em reexecuções com o mesmo DBC.
     db.all(
-      `COPY (SELECT * FROM read_json_auto('${jsonFile.replace(/'/g, "''")}', format='newline_delimited'))
-       TO '${outFile.replace(/'/g, "''")}' (FORMAT PARQUET, COMPRESSION ZSTD)`,
+      `COPY (
+         SELECT * FROM read_json_auto('${jsonFile.replace(/'/g, "''")}', format='newline_delimited')
+         ORDER BY ufSigla, municipioCode, competencia, loinc
+       ) TO '${outFile.replace(/'/g, "''")}'
+       (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)`,
       (err) => {
         db.close(() => {
           if (err) reject(err);
@@ -198,9 +251,50 @@ async function writePartition(cli: Cli, ufSigla: string, year: number, rows: Row
   process.stderr.write(`  ✓ ano=${year}/uf=${ufSigla}/part.parquet  (${rows.length} linhas)\n`);
 }
 
+async function runFromPending(cli: Cli): Promise<void> {
+  const pending = loadPending(cli.fromPending!);
+  process.stderr.write(`Modo --from-pending: ${pending.length} (UF × competência) a processar\n`);
+
+  // Agrupa por (uf, year) pra emitir 1 partição por grupo — mantém o
+  // layout existente `ano=YYYY/uf=XX/part.parquet`.
+  const byUfYear = new Map<string, UfYearMonth[]>();
+  for (const p of pending) {
+    const key = `${p.uf}|${p.year}`;
+    const bucket = byUfYear.get(key) ?? [];
+    bucket.push(p);
+    byUfYear.set(key, bucket);
+  }
+
+  for (const [key, items] of [...byUfYear.entries()].sort()) {
+    const [uf, yearStr] = key.split('|') as [string, string];
+    const year = Number(yearStr);
+    const rows: Row[] = [];
+    let totalRead = 0;
+    process.stderr.write(`[${year}] ${uf}: `);
+    for (const { month } of items.sort((a, b) => a.month - b.month)) {
+      const read = await collectMonth(uf, year, month, rows);
+      totalRead += read;
+      process.stderr.write(`${month}${read > 0 ? '·' : 'x'}`);
+      if (cli.throttleMs > 0) await sleep(cli.throttleMs);
+    }
+    process.stderr.write(
+      ` (${totalRead.toLocaleString('pt-BR')} registros → ${rows.length} lab-LOINC)\n`,
+    );
+    await writePartition(cli, uf, year, rows);
+  }
+
+  process.stderr.write(`✓ Delta processado em ${cli.outDir}\n`);
+}
+
 async function main(): Promise<void> {
   const cli = parseArgs(process.argv.slice(2));
   mkdirSync(cli.outDir, { recursive: true });
+
+  if (cli.fromPending) {
+    await runFromPending(cli);
+    process.exit(0);
+  }
+
   process.stderr.write(
     `Agregando SIA-PA → Parquet | UFs=${cli.ufs.join(',')} | anos=${cli.years.join(',')} | out=${cli.outDir}\n`,
   );
