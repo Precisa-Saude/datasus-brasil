@@ -9,8 +9,14 @@
 // `precisa-saude-datasus-brasil` via Origin Access Control. CDN
 // absorve cache hits e corta custo/latência de Range Requests
 // repetidos.
-export const DATA_BASE_URL =
-  import.meta.env.VITE_DATA_BASE_URL ?? 'https://dfdu08vi8wsus.cloudfront.net';
+const RAW_BASE_URL = import.meta.env.VITE_DATA_BASE_URL ?? 'https://dfdu08vi8wsus.cloudfront.net';
+
+// DuckDB WASM + httpfs precisa de URL absoluta — caminhos relativos
+// (ex.: `/data-local`) caem no filesystem local do WASM e falham.
+// Prepend origin quando o valor é relativo.
+export const DATA_BASE_URL: string = RAW_BASE_URL.startsWith('/')
+  ? `${typeof window === 'undefined' ? '' : window.location.origin}${RAW_BASE_URL}`
+  : RAW_BASE_URL;
 
 export const PMTILES_URL = `${DATA_BASE_URL}/geo/brasil.pmtiles`;
 export const MANIFEST_URL = `${DATA_BASE_URL}/manifest/index.json`;
