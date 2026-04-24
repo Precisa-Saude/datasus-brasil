@@ -1,0 +1,126 @@
+name: refresh-sia-pa
+
+# Refresh mensal/semanal do dataset SIA-PA. Sonda o FTP do DATASUS,
+# detecta competências novas, agrega o delta, consolida, faz upload
+# para S3/CloudFront e publica um release no GitHub. State versionado
+# em `state/dataset.json` é commitado de volta ao main no caminho feliz.
+#
+# Cadência: toda segunda 06:00 UTC. DATASUS publica SIA-PA com 45-90
+# dias de lag após o fim da competência, então uma sonda semanal cobre
+# bem a janela de publicação.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run — detect only, skip aggregate/upload/release'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - id: detect
+        name: Detectar competências novas no FTP
+        run: pnpm -F @datasus-brasil/site run detect-new
+
+      - if: steps.detect.outputs.hasNew != 'true'
+        name: Nada novo — encerra
+        run: |
+          echo 'Nenhuma competência nova detectada no FTP DATASUS.'
+          exit 0
+
+      - if: inputs.dryRun == 'true'
+        name: Dry run — mostra pending e encerra
+        run: |
+          echo 'Dry run requested — mostrando pending.json:'
+          cat state/pending.json
+          exit 0
+
+      - name: Agregar delta
+        run: pnpm -F @datasus-brasil/site run aggregate -- --from-pending
+
+      - name: Consolidar Parquet
+        run: pnpm -F @datasus-brasil/site run build:consolidate
+
+      - name: Atualizar manifesto
+        run: pnpm -F @datasus-brasil/site run build:parquet-index
+
+      - name: Gerar provenance
+        run: pnpm -F @datasus-brasil/site run emit-provenance
+
+      - name: Configurar credenciais AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Upload para S3
+        run: pnpm -F @datasus-brasil/site run upload:aws
+
+      - name: Invalidar CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths '/manifest/*' '/parquet-opt/*' '/provenance/*'
+
+      - name: Atualizar state/dataset.json
+        run: pnpm -F @datasus-brasil/site run detect-new -- --mark-processed
+
+      - name: Criar GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dataset-${{ steps.detect.outputs.latestCompetencia }}
+          name: Dataset SIA-PA ${{ steps.detect.outputs.latestCompetencia }}
+          body: |
+            Refresh automático do dataset SIA-PA.
+
+            Competência mais recente incluída: **${{ steps.detect.outputs.latestCompetencia }}**
+            Novas competências processadas: **${{ steps.detect.outputs.pendingCount }}**
+
+            Arquivos:
+            - `manifest/index.json` — metadados (UFs, anos, competências, biomarcadores)
+            - `parquet-opt/uf-totals.parquet` — agregado nacional
+            - `parquet-opt/uf=*/part.parquet` — um por UF
+            - `provenance/ano=*/uf=*/part.provenance.json` — SHA256 dos DBC-fonte + gitSha
+
+            Para validar byte-a-byte, baixe o DBC correspondente de
+            `ftp.datasus.gov.br/dissemin/publicos/SIASUS/200801_/Dados/` e
+            compare SHA256 contra o `sources[].sha256` no provenance.
+          files: |
+            packages/site/build/manifest/index.json
+            packages/site/build/parquet-opt/uf-totals.parquet
+            packages/site/build/parquet-opt/uf=*/part.parquet
+            packages/site/build/provenance/**/*.json
+          generate_release_notes: true
+
+      - name: Commit state atualizado
+        run: |
+          git config user.name 'datasus-brasil-bot'
+          git config user.email 'noreply@precisa-saude.com'
+          git add state/dataset.json
+          if git diff --cached --quiet; then
+            echo 'state/dataset.json inalterado — nada a commitar.'
+            exit 0
+          fi
+          git commit -m "chore(data): refresh SIA-PA ${{ steps.detect.outputs.latestCompetencia }}"
+          git push
