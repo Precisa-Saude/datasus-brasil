@@ -1,63 +1,44 @@
 #!/usr/bin/env tsx
 /**
  * Agregador SIA-PA → Parquet particionado em Hive-style
- * (`ano=YYYY/uf=XX/part.parquet`). Pensado pra escalar: todas as UFs ×
- * todos os anos disponíveis no FTP DATASUS (2008+) num único layout
- * que DuckDB WASM lê direto via `read_parquet(...)` com pushdown de
- * filtro por partição.
+ * (`ano=YYYY/uf=XX/mes=MM/part.parquet`). Consome o **raw Parquet
+ * público** publicado por `datasus-parquet` via HTTPS — não toca o FTP
+ * DATASUS nem cache local.
  *
- * Pré-requisitos: `pnpm -F @datasus-brasil/site install` (inclui
- * `duckdb` native binding).
+ * Pipeline:
+ *   1. Para cada (uf, year, month), constrói URL do raw parquet
+ *      em `https://<RAW_BASE_URL>/sia-pa/ano=YYYY/uf=XX/mes=MM/part.parquet`.
+ *   2. DuckDB native lê o parquet remoto via httpfs, filtra SIGTAP
+ *      02.02, agrega por (município, SIGTAP).
+ *   3. JS traduz SIGTAP → LOINC via `@precisa-saude/datasus-sdk`.
+ *   4. Re-agrega por (município, LOINC) — múltiplos SIGTAPs podem
+ *      mapear pro mesmo biomarcador.
+ *   5. Escreve Parquet agregado local (`build/parquet/...`) pra
+ *      consumo posterior pelo `consolidate-parquet.ts`.
  *
  * Uso:
- *   pnpm -F @datasus-brasil/site aggregate-parquet \
- *     --ufs AC --years 2024
- *   pnpm -F @datasus-brasil/site aggregate-parquet \
- *     --ufs ALL --years 2008-2025
+ *   pnpm aggregate -- --ufs AC --years 2024
+ *   pnpm aggregate -- --ufs ALL --years 2020-2025
+ *   pnpm aggregate -- --source-url https://my-mirror.example.com
  *
- * Observação: só agrega linhas de laboratório (SIGTAP 02.02) com LOINC
- * mapeado. `municipioCode` mantido em 6 dígitos (sem DV, como o SIA).
+ * Se o raw parquet não existir pro mês (ex.: split files MG/RJ/SP 2021+),
+ * o HEAD falha com 404 e o mês é pulado silenciosamente.
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import {
-  enrichWithLoinc,
-  findMunicipio,
-  isSigtapLaboratorio,
-  sia,
-  type SiaProducaoAmbulatorialRecord,
-} from '@precisa-saude/datasus-sdk';
+import { findMunicipio, sigtapToLoinc } from '@precisa-saude/datasus-sdk';
 import duckdb from 'duckdb';
 
+const DEFAULT_SOURCE_URL = 'https://dfdu08vi8wsus.cloudfront.net';
+
 interface Cli {
-  fromPending: null | string;
   outDir: string;
-  throttleMs: number;
+  sourceUrl: string;
   ufs: string[];
-  yearPauseMs: number;
   years: number[];
-}
-
-interface PendingEntry {
-  ftpPath?: string;
-  month: number;
-  uf: string;
-  year: number;
-}
-
-interface PendingFile {
-  detectedAt: string;
-  latestCompetencia: string;
-  pending: PendingEntry[];
-}
-
-interface UfYearMonth {
-  month: number;
-  uf: string;
-  year: number;
 }
 
 const ALL_UFS = [
@@ -102,58 +83,72 @@ function parseArgs(argv: string[]): Cli {
   };
 
   const rawUfs = get('--ufs', 'AC').toUpperCase();
-  // Determinismo: UFs sempre ordenadas alfabeticamente.
   const ufs = (rawUfs === 'ALL' ? ALL_UFS : rawUfs.split(',').map((s) => s.trim())).sort();
   const yearsArg = get('--years', '2024');
   const years: number[] = [];
   for (const chunk of yearsArg.split(',')) {
     const [a, b] = chunk.split('-').map((s) => Number(s.trim()));
-    if (!Number.isInteger(a)) throw new Error(`--years inválido: '${yearsArg}'`);
-    const end = Number.isInteger(b) ? b : a;
-    for (let y = a; y <= end!; y += 1) years.push(y);
+    if (a === undefined || !Number.isInteger(a)) {
+      throw new Error(`--years inválido: '${yearsArg}'`);
+    }
+    const end = Number.isInteger(b) ? (b as number) : a;
+    for (let y = a; y <= end; y += 1) years.push(y);
   }
   years.sort((x, y) => x - y);
   const siteRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-  const outDir = resolve(siteRoot, get('--out', 'build/parquet'));
-  const throttleMs = Number(get('--throttle-ms', '500'));
-  const yearPauseMs = Number(get('--year-pause-ms', '5000'));
-  const fromPendingArg = argv.indexOf('--from-pending');
-  // Aceita `--from-pending` (caminho default) ou `--from-pending <path>`.
-  const fromPending =
-    fromPendingArg === -1
-      ? null
-      : argv[fromPendingArg + 1] && !argv[fromPendingArg + 1]!.startsWith('--')
-        ? resolve(siteRoot, argv[fromPendingArg + 1]!)
-        : resolve(siteRoot, '..', '..', 'state/pending.json');
-  if (!Number.isFinite(throttleMs) || throttleMs < 0) {
-    throw new Error(`--throttle-ms inválido: ${throttleMs}`);
-  }
-  if (!Number.isFinite(yearPauseMs) || yearPauseMs < 0) {
-    throw new Error(`--year-pause-ms inválido: ${yearPauseMs}`);
-  }
-  return { fromPending, outDir, throttleMs, ufs, yearPauseMs, years };
+  return {
+    outDir: resolve(siteRoot, get('--out', 'build/parquet')),
+    sourceUrl: get('--source-url', DEFAULT_SOURCE_URL).replace(/\/+$/, ''),
+    ufs,
+    years,
+  };
 }
 
-function loadPending(path: string): UfYearMonth[] {
-  if (!existsSync(path)) {
-    throw new Error(`--from-pending: arquivo não encontrado em ${path}`);
+function rawUrl(sourceUrl: string, uf: string, year: number, month: number): string {
+  const mesStr = String(month).padStart(2, '0');
+  return `${sourceUrl}/sia-pa/ano=${year}/uf=${uf}/mes=${mesStr}/part.parquet`;
+}
+
+async function remoteExists(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    return res.ok;
+  } catch {
+    return false;
   }
-  const raw = JSON.parse(readFileSync(path, 'utf8')) as PendingFile;
-  const list = (raw.pending ?? []).map((p) => ({
-    month: p.month,
-    uf: p.uf.toUpperCase(),
-    year: p.year,
-  }));
-  // Determinismo: ordena (uf, year, month).
-  return list.sort((a, b) => {
-    if (a.uf !== b.uf) return a.uf.localeCompare(b.uf);
-    if (a.year !== b.year) return a.year - b.year;
-    return a.month - b.month;
+}
+
+interface AggregatedRow {
+  municipioCode: string;
+  sigtap: string;
+  valor: number;
+  volume: number;
+}
+
+function aggregateMonthSql(url: string): Promise<AggregatedRow[]> {
+  return new Promise((res, rej) => {
+    const db = new duckdb.Database(':memory:');
+    // Filtro SIGTAP 02.02 + agregação em SQL. Retorna milhares de
+    // linhas (município × SIGTAP) em vez de milhões de registros brutos.
+    db.all(
+      `INSTALL httpfs; LOAD httpfs;
+       SELECT
+         CAST(PA_UFMUN AS VARCHAR) AS municipioCode,
+         CAST(PA_PROC_ID AS VARCHAR) AS sigtap,
+         CAST(SUM(TRY_CAST(PA_QTDAPR AS DOUBLE)) AS DOUBLE) AS volume,
+         CAST(SUM(TRY_CAST(PA_VALAPR AS DOUBLE)) AS DOUBLE) AS valor
+       FROM read_parquet('${url.replace(/'/g, "''")}')
+       WHERE substr(CAST(PA_PROC_ID AS VARCHAR), 1, 4) = '0202'
+         AND PA_UFMUN IS NOT NULL
+       GROUP BY PA_UFMUN, PA_PROC_ID`,
+      (err, rows) => {
+        db.close(() => {
+          if (err) rej(err);
+          else res((rows ?? []) as unknown as AggregatedRow[]);
+        });
+      },
+    );
   });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((res) => setTimeout(res, ms));
 }
 
 interface Row {
@@ -166,97 +161,70 @@ interface Row {
   volumeExames: number;
 }
 
-async function collectMonth(
-  ufSigla: string,
-  year: number,
-  month: number,
-): Promise<{ read: number; rows: Row[] }> {
-  const iso = `${year}-${String(month).padStart(2, '0')}`;
-  const agg = new Map<string, { valor: number; volume: number; nome: string }>();
-  let read = 0;
-  try {
-    for await (const raw of sia.streamProducaoAmbulatorial({ month, uf: ufSigla, year })) {
-      read += 1;
-      const record = raw as SiaProducaoAmbulatorialRecord;
-      if (!isSigtapLaboratorio(typeof record.PA_PROC_ID === 'string' ? record.PA_PROC_ID : null)) {
-        continue;
-      }
-      const enriched = enrichWithLoinc(record);
-      if (enriched.loinc === null || enriched.loinc.loinc === null) continue;
-      const loinc = enriched.loinc.loinc;
-      const munCode = typeof record.PA_UFMUN === 'string' ? record.PA_UFMUN : null;
-      if (!munCode) continue;
-      const qtd = typeof record.PA_QTDAPR === 'number' ? record.PA_QTDAPR : 1;
-      const valor = typeof record.PA_VALAPR === 'number' ? record.PA_VALAPR : 0;
-      const key = `${munCode}|${loinc}`;
-      const cur = agg.get(key) ?? {
-        nome: findMunicipio(munCode)?.nome ?? munCode,
-        valor: 0,
-        volume: 0,
-      };
-      cur.volume += qtd;
-      cur.valor += valor;
-      agg.set(key, cur);
-    }
-  } catch (err) {
-    process.stderr.write(`FALHA ${ufSigla} ${iso}: ${(err as Error).message}\n`);
-    return { read: 0, rows: [] };
+function enrichAndReaggregate(aggregated: AggregatedRow[], uf: string, competencia: string): Row[] {
+  const byKey = new Map<string, { municipioNome: string; valor: number; volume: number }>();
+  for (const r of aggregated) {
+    const mapping = sigtapToLoinc(r.sigtap);
+    if (mapping?.loinc == null) continue;
+    const key = `${r.municipioCode}|${mapping.loinc}`;
+    const prev = byKey.get(key) ?? {
+      municipioNome: findMunicipio(r.municipioCode)?.nome ?? r.municipioCode,
+      valor: 0,
+      volume: 0,
+    };
+    prev.volume += Number(r.volume) || 0;
+    prev.valor += Number(r.valor) || 0;
+    byKey.set(key, prev);
   }
-  const rows: Row[] = [];
-  for (const [key, v] of agg) {
+  const out: Row[] = [];
+  for (const [key, v] of byKey) {
     const [municipioCode, loinc] = key.split('|') as [string, string];
-    rows.push({
-      competencia: iso,
+    out.push({
+      competencia,
       loinc,
       municipioCode,
-      municipioNome: v.nome,
-      ufSigla,
+      municipioNome: v.municipioNome,
+      ufSigla: uf,
       valorAprovadoBRL: Number(v.valor.toFixed(2)),
       volumeExames: v.volume,
     });
   }
-  return { read, rows };
+  return out;
 }
 
 async function writeMonthPartition(
-  cli: Cli,
-  ufSigla: string,
+  outDir: string,
+  uf: string,
   year: number,
   month: number,
   rows: Row[],
 ): Promise<void> {
   if (rows.length === 0) return;
   const mesStr = String(month).padStart(2, '0');
-  const partitionDir = resolve(cli.outDir, `ano=${year}/uf=${ufSigla}/mes=${mesStr}`);
+  const partitionDir = resolve(outDir, `ano=${year}/uf=${uf}/mes=${mesStr}`);
   mkdirSync(partitionDir, { recursive: true });
   const outFile = resolve(partitionDir, 'part.parquet');
-
-  // Via DuckDB: leitura de JSON em memória → COPY TO Parquet (zstd).
   const jsonFile = resolve(partitionDir, 'part.ndjson');
   writeFileSync(jsonFile, rows.map((r) => JSON.stringify(r)).join('\n'));
 
-  await new Promise<void>((resolve2, reject) => {
+  await new Promise<void>((res, rej) => {
     const db = new duckdb.Database(':memory:');
-    // Determinismo: ORDER BY fixo, row_group_size explícito. Produz
-    // Parquet byte-a-byte idêntico em reexecuções com o mesmo DBC.
     db.all(
       `COPY (
-         SELECT * FROM read_json_auto('${jsonFile.replace(/'/g, "''")}', format='newline_delimited')
+         SELECT * FROM read_json_auto('${jsonFile.replace(/'/g, "''")}',
+           format='newline_delimited')
          ORDER BY ufSigla, municipioCode, competencia, loinc
        ) TO '${outFile.replace(/'/g, "''")}'
        (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 100000)`,
       (err) => {
-        db.close(() => {
-          if (err) reject(err);
-          else resolve2();
-        });
+        db.close(() => (err ? rej(err) : res()));
       },
     );
   });
 
   rmSync(jsonFile);
   process.stderr.write(
-    `  ✓ ano=${year}/uf=${ufSigla}/mes=${mesStr}/part.parquet  (${rows.length} linhas)\n`,
+    `  ✓ ano=${year}/uf=${uf}/mes=${mesStr}/part.parquet (${rows.length} linhas)\n`,
   );
 }
 
@@ -265,74 +233,46 @@ async function processMonth(
   uf: string,
   year: number,
   month: number,
-): Promise<{ read: number; rowsEmitted: number; skipped?: boolean }> {
+): Promise<{ emitted: number; status: '404' | 'done' | 'skipped' }> {
   const mesStr = String(month).padStart(2, '0');
   const outFile = resolve(cli.outDir, `ano=${year}/uf=${uf}/mes=${mesStr}/part.parquet`);
   if (existsSync(outFile)) {
-    return { read: 0, rowsEmitted: 0, skipped: true };
+    return { emitted: 0, status: 'skipped' };
   }
-  const { read, rows } = await collectMonth(uf, year, month);
-  await writeMonthPartition(cli, uf, year, month, rows);
-  return { read, rowsEmitted: rows.length };
-}
 
-async function runFromPending(cli: Cli): Promise<void> {
-  const pending = loadPending(cli.fromPending!);
-  process.stderr.write(`Modo --from-pending: ${pending.length} (UF × competência) a processar\n`);
-  for (const { month, uf, year } of pending) {
-    const r = await processMonth(cli, uf, year, month);
-    if (cli.throttleMs > 0) await sleep(cli.throttleMs);
-    if (r.skipped) {
-      process.stderr.write(
-        `[${year}-${String(month).padStart(2, '0')}] ${uf}: já existe, pulando\n`,
-      );
-    }
+  const url = rawUrl(cli.sourceUrl, uf, year, month);
+  if (!(await remoteExists(url))) {
+    return { emitted: 0, status: '404' };
   }
-  process.stderr.write(`✓ Delta processado em ${cli.outDir}\n`);
+
+  const competencia = `${year}-${mesStr}`;
+  const aggregated = await aggregateMonthSql(url);
+  const rows = enrichAndReaggregate(aggregated, uf, competencia);
+  await writeMonthPartition(cli.outDir, uf, year, month, rows);
+  return { emitted: rows.length, status: 'done' };
 }
 
 async function main(): Promise<void> {
   const cli = parseArgs(process.argv.slice(2));
   mkdirSync(cli.outDir, { recursive: true });
-
-  if (cli.fromPending) {
-    await runFromPending(cli);
-    process.exit(0);
-  }
-
   process.stderr.write(
-    `Agregando SIA-PA → Parquet | UFs=${cli.ufs.join(',')} | anos=${cli.years.join(',')} | out=${cli.outDir}\n`,
+    `Agregando SIA-PA (raw HTTPS → filtered+LOINC) | UFs=${cli.ufs.join(',')} | ` +
+      `anos=${cli.years.join(',')} | source=${cli.sourceUrl}\n`,
   );
 
-  for (let yIdx = 0; yIdx < cli.years.length; yIdx += 1) {
-    const year = cli.years[yIdx]!;
-    for (const ufSigla of cli.ufs) {
-      process.stderr.write(`[${year}] ${ufSigla}: `);
-      let totalRead = 0;
-      let totalRowsEmitted = 0;
+  for (const year of cli.years) {
+    for (const uf of cli.ufs) {
+      process.stderr.write(`[${year}] ${uf}: `);
       for (let month = 1; month <= 12; month += 1) {
-        const r = await processMonth(cli, ufSigla, year, month);
-        totalRead += r.read;
-        totalRowsEmitted += r.rowsEmitted;
-        process.stderr.write(`${month}${r.skipped ? '=' : r.read > 0 ? '·' : 'x'}`);
-        // Throttle entre arquivos pra não hammer o FTP DATASUS.
-        if (cli.throttleMs > 0 && month < 12) await sleep(cli.throttleMs);
+        const r = await processMonth(cli, uf, year, month);
+        const marker = r.status === 'done' ? '·' : r.status === 'skipped' ? '=' : 'x';
+        process.stderr.write(`${month}${marker}`);
       }
-      process.stderr.write(
-        ` (${totalRead.toLocaleString('pt-BR')} registros → ${totalRowsEmitted} lab-LOINC)\n`,
-      );
-      if (cli.throttleMs > 0) await sleep(cli.throttleMs);
-    }
-    // Pausa mais longa entre anos (ex. checkpoint natural). Útil se
-    // quiser interromper manualmente — já temos todos os Parquet do
-    // ano completo em disco.
-    if (cli.yearPauseMs > 0 && yIdx < cli.years.length - 1) {
-      process.stderr.write(`  (pausa de ${cli.yearPauseMs}ms antes do próximo ano)\n`);
-      await sleep(cli.yearPauseMs);
+      process.stderr.write('\n');
     }
   }
 
-  process.stderr.write(`✓ Parquet particionado em ${cli.outDir}\n`);
+  process.stderr.write(`✓ Agregado em ${cli.outDir}\n`);
   process.exit(0);
 }
 
