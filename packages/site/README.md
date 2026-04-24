@@ -7,68 +7,81 @@ catálogo LOINC.
 
 ## Stack
 
-Vite + React 19 + Tailwind v4 + shadcn + `@precisa-saude/ui`/`themes` +
-Mapbox GL JS. Mesma stack de `fhir-brasil/site` e `medbench-brasil/site`.
+Vite + React 19 + Tailwind v4 + shadcn + `@precisa-saude/ui`/`themes`
 
-## Scripts
+- MapLibre GL JS + PMTiles + DuckDB WASM. Mesma base das interfaces
+  de `fhir-brasil/site` e `medbench-brasil/site`.
+
+## Documentação
+
+Guias detalhados em [`docs/`](./docs):
+
+- [`architecture.md`](./docs/architecture.md) — fluxo de dados ponta a
+  ponta, _runtime_ do browser, decisões de projeto.
+- [`data-pipeline.md`](./docs/data-pipeline.md) — cada _script_ em
+  detalhe (_flags_, entrada, saída, _schema_).
+- [`deployment.md`](./docs/deployment.md) — S3, CloudFront, _cache
+  policy_.
+- [`development.md`](./docs/development.md) — ambiente local,
+  variáveis, _worktrees_, testes.
+
+## _Scripts_
 
 ```bash
-pnpm dev        # Vite dev server em http://localhost:4322
-pnpm build      # tsc + vite build
-pnpm preview    # serve o build
+pnpm dev                  # Vite dev server em http://localhost:4322
+pnpm build                # tsc + vite build
+pnpm preview              # serve o build
 pnpm lint
 pnpm typecheck
 pnpm test
-pnpm aggregate  # regenera public/data/sia-pa-*.json a partir do SIA-SUS
+pnpm test:coverage
+
+# Pipeline de dados
+pnpm aggregate            # SIA-PA → build/parquet/ (Hive)
+pnpm build:consolidate    # → build/parquet-opt/ (otimizado p/ WASM)
+pnpm build:parquet-index  # → build/manifest/index.json
+pnpm build:geo-tiles      # IBGE → build/geo/brasil.pmtiles
+pnpm upload:aws           # publica tudo no S3
 ```
 
 ## Configuração
 
-### Token do Mapbox
+### _Token_ do Mapbox
 
-O site usa Mapbox GL JS. Obtenha um token gratuito em
-[account.mapbox.com](https://account.mapbox.com/) e defina num arquivo
-`.env.local` na raiz de `packages/site/`:
+Crie `packages/site/.env.local`:
 
-```
+```ini
 VITE_MAPBOX_TOKEN=pk.seu_token_aqui
 ```
 
-Sem o token, a página renderiza uma mensagem explicativa em vez do
-mapa (fail graceful).
+_Token_ gratuito em [account.mapbox.com](https://account.mapbox.com/).
+Sem o _token_, a página renderiza aviso em texto em vez do mapa (fail
+graceful).
 
-### Agregar dados SIA-PA
-
-O site consome três artefatos pré-computados em `public/data/`:
-
-- `sia-pa-index.json` — biomarcadores e competências cobertas.
-- `sia-pa-uf.json` — agregado por UF × LOINC × competência.
-- `sia-pa-{UF}-municipios.json` — agregado municipal (lazy-load).
-
-Para regenerar a partir do FTP DATASUS:
+### Regenerar dados a partir do FTP DATASUS
 
 ```bash
-# Apenas AC (smoke — poucos MBs):
-pnpm -F @datasus-brasil/site aggregate --ufs AC --months 2024-01..2024-01
+# Smoke (1 UF, 1 ano) — poucos MB, minutos
+pnpm -F @datasus-brasil/site aggregate --ufs AC --years 2024
 
-# Ano inteiro em todas as UFs (download pesado, minutos/horas):
-pnpm -F @datasus-brasil/site aggregate \
-  --ufs AC,AL,AM,AP,BA,CE,DF,ES,GO,MA,MG,MS,MT,PA,PB,PE,PI,PR,RJ,RN,RO,RR,RS,SC,SE,SP,TO \
-  --months 2024-01..2024-12
+# Ano inteiro, todas as UFs — download pesado, horas
+pnpm -F @datasus-brasil/site aggregate --ufs ALL --years 2024
+
+# Série histórica
+pnpm -F @datasus-brasil/site aggregate --ufs ALL --years 2008-2025
 ```
 
-O cache FTP fica em `~/.cache/datasus-brasil` — reexecuções com os
-mesmos UF × mês batem cache e não refazem download.
+Cache FTP: `~/.cache/datasus-brasil`. Ver
+[`data-pipeline.md`](./docs/data-pipeline.md) para fluxo completo.
 
 ## Geometrias
 
-Shapefiles IBGE simplificados (geobr/IPEA) em `public/geo/`:
+`build/geo/brasil.pmtiles` contém UFs (fonte _click_that_hood_
+simplificado) e municípios (API de malhas IBGE v4, qualidade
+`intermediaria`). Duas _layers_, _zoom_ 2–10, ~12 MB.
 
-- `uf.geojson` — 27 UFs, ~180KB (simplificação 8% via mapshaper).
-- `municipios/{UF}.geojson` — baixado sob demanda do drill-down. Fonte
-  direta da [API de malhas IBGE v4](https://servicodados.ibge.gov.br/api/v4/malhas/estados)
-  (qualidade "intermediaria"). Apenas AC está commitado neste MVP;
-  adicione UFs rodando o script de agregação.
+Regeneração: `pnpm build:geo-tiles` (exige `tippecanoe` e `pmtiles` —
+`brew install tippecanoe pmtiles`).
 
 ## Limitações conhecidas
 
