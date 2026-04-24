@@ -6,7 +6,7 @@ Obrigado pelo interesse em contribuir com o datasus-brasil!
 
 ### Reportar Bugs
 
-1. Verifique se o bug já foi reportado nas [Issues](https://github.com/Precisa-Saude/datasus-brasil/issues)
+1. Verifique se o bug já foi reportado nas [Issues](https://github.com/Precisa-Saude/datasus-viz/issues)
 2. Abra uma nova issue com:
    - Descrição clara do problema
    - Passos para reproduzir

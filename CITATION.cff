@@ -7,7 +7,7 @@ type: software
 authors:
   - name: Precisa Saúde
     website: https://precisa-saude.com.br
-repository-code: https://github.com/Precisa-Saude/datasus-brasil
+repository-code: https://github.com/Precisa-Saude/datasus-viz
 url: https://datasus-brasil.dev.br
 keywords:
   - datasus

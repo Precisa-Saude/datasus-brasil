@@ -11,11 +11,11 @@
     "brasil",
     "saúde"
   ],
-  "homepage": "https://github.com/Precisa-Saude/datasus-brasil/tree/main/packages/cli#readme",
-  "bugs": "https://github.com/Precisa-Saude/datasus-brasil/issues",
+  "homepage": "https://github.com/Precisa-Saude/datasus-viz/tree/main/packages/cli#readme",
+  "bugs": "https://github.com/Precisa-Saude/datasus-viz/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Precisa-Saude/datasus-brasil.git",
+    "url": "https://github.com/Precisa-Saude/datasus-viz.git",
     "directory": "packages/cli"
   },
   "license": "Apache-2.0",
@@ -36,7 +36,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@precisa-saude/datasus": "workspace:*"
+    "@precisa-saude/datasus-sdk": "^2.0.1"
   },
   "devDependencies": {
     "tsup": "^8.3.5",

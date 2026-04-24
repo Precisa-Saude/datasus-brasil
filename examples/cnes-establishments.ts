@@ -8,7 +8,7 @@
  * Default: AC 2024 1.
  */
 
-import { cnes, countBy, labelTipoUnidade, topN } from '@precisa-saude/datasus';
+import { cnes, countBy, labelTipoUnidade, topN } from '@precisa-saude/datasus-sdk';
 
 const uf = process.argv[2] ?? 'AC';
 const year = Number(process.argv[3] ?? '2024');

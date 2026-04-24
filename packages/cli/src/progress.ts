@@ -8,7 +8,7 @@
  * Não depende de nenhuma lib externa.
  */
 
-import type { ProgressEvent } from '@precisa-saude/datasus';
+import type { ProgressEvent } from '@precisa-saude/datasus-sdk';
 
 export interface ProgressReporterOptions {
   /** Stream de saída (default: process.stderr). Injetável pra testes. */
