@@ -53,6 +53,5 @@ jobs:
     with:
       release_sha: ${{ needs.release.outputs.release_sha }}
       packages: |
-        packages/dbc
-        packages/core
+        packages/cli
     secrets: inherit
