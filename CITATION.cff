@@ -12,10 +12,24 @@ url: https://datasus-brasil.dev.br
 keywords:
   - datasus
   - sus
+  - sia-sus
   - cnes
   - dbc
   - dbf
+  - loinc
   - brasil
   - saúde
   - microdados
+  - open-data
 license: Apache-2.0
+references:
+  - type: data
+    title: Agregados SIA-PA derivados do SIA-SUS (DATASUS / Ministério da Saúde)
+    license: CC-BY-4.0
+    repository: https://github.com/Precisa-Saude/datasus-brasil
+    notes: >-
+      Agregados publicados em releases do repositório (tag
+      `dataset-YYYY-MM`). Procedência, base legal e citação formal
+      em `packages/site/docs/data-license.md`. Após integração com
+      Zenodo, cada release recebe um DOI citável — substitua aqui
+      pelo DOI emitido.
