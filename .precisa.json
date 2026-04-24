@@ -6,6 +6,9 @@
   "hasSite": true,
   "hasPackages": true,
   "publishesToNpm": true,
+  "publishPackages": ["packages/cli"],
+  "siteProjectName": "datasus-viz",
+  "siteFilter": "@datasus-viz/site",
   "commitScopes": ["site", "cli", "docs", "ci", "deps", "lint", "config"],
   "contactEmails": {
     "security": "security@precisa-saude.com.br",
