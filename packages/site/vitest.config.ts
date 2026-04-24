@@ -26,12 +26,17 @@ export default defineConfig({
         '**/dist/**',
         '**/node_modules/**',
         'scripts/**',
-        'src/aggregates.ts',
         'src/lib/aggregates.ts',
-        // Componentes Mapbox: integração com biblioteca externa, test em
-        // jsdom vira mock-vs-mock; verificados via golden path manual.
-        'src/components/MapView.tsx',
-        'src/components/MunicipioMapView.tsx',
+        'src/vite-env.d.ts',
+        // Integrações MapLibre/WASM: testar em jsdom vira mock-vs-mock
+        // sem sinal real; validadas via golden path manual com `pnpm dev`.
+        'src/components/BrasilMap.tsx',
+        'src/components/MapLegend.tsx',
+        'src/components/ErrorBoundary.tsx',
+        'src/lib/duckdb.ts',
+        'src/lib/mapbox.ts',
+        'src/lib/pmtiles-protocol.ts',
+        'src/lib/map-layers.ts',
         // Composição/layout — sem lógica própria.
         'src/App.tsx',
         'src/main.tsx',
