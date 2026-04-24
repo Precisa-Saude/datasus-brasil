@@ -1,0 +1,7 @@
+dist
+.turbo
+coverage
+node_modules
+*.local
+build/
+public/data-local/

@@ -1,0 +1,138 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@precisa-saude/themes';
+@config '../tailwind.config.js';
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Roboto Serif', Georgia, serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Roboto', system-ui, sans-serif;
+  }
+
+  button,
+  [role='button'],
+  a {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  .font-margem {
+    font-family: 'Roboto', system-ui, sans-serif;
+  }
+
+  .font-pausa {
+    font-family: 'Roboto Serif', Georgia, serif;
+  }
+
+  .font-mono {
+    font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+}
+
+/* Slider range estilizado no padrão platform (track h-1, thumb h-5 w-5 */
+/* border-2 border-primary bg-background). Implementado via input[type=range] */
+/* pra evitar adicionar @radix-ui/react-slider. */
+.competencia-slider {
+  cursor: pointer;
+}
+.competencia-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--primary) 0%,
+    var(--primary) var(--pct, 0%),
+    var(--secondary) var(--pct, 0%),
+    var(--secondary) 100%
+  );
+}
+.competencia-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--secondary);
+}
+.competencia-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--primary);
+}
+.competencia-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;
+  border-radius: 9999px;
+  background: var(--background);
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: transform 120ms ease;
+}
+.competencia-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+}
+.competencia-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: var(--background);
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.competencia-slider:focus-visible {
+  outline: none;
+}
+.competencia-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 40%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@theme inline {
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-background: var(--background);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-destructive: var(--destructive);
+  --color-foreground: var(--foreground);
+  --color-input: var(--input);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-sm: calc(var(--radius) * 0.6);
+}

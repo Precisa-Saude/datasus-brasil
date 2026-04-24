@@ -5,3 +5,8 @@ coverage
 .turbo
 pnpm-lock.yaml
 CHANGELOG.md
+# GeoJSON vem minificado de fontes externas (IBGE/geobr); reformatar
+# explodiria o arquivo em milhões de linhas de coordenadas.
+**/*.geojson
+# Dados pré-agregados gerados pelo `aggregate-sia.ts`.
+packages/site/public/data/**
