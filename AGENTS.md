@@ -23,7 +23,7 @@ separados — ver README.
 ```
 packages/
   cli/     → @precisa-saude/datasus-cli   (CLI `datasus-brasil`, consome datasus-sdk via npm)
-  site/    → @datasus-viz/site            (Vite + React + MapLibre + DuckDB WASM, só no PRE-206 branch)
+  site/    → @datasus-viz/site            (Vite + React + MapLibre + DuckDB WASM)
 ```
 
 Decoder e SDK extraídos para:
@@ -67,5 +67,4 @@ lives in `package.json` under `"worktree"`. For quick reference:
 | Feature base  | `site=4332`, increment 10              |
 | pnpm filter   | `@datasus-viz/site`                    |
 
-O site vive no branch `rlueder/pre-206-geo-viz` (aguardando merge). No
-main o worktree de site ainda não é servido.
+O site está em `main` e é servido normalmente via `pnpm -F @datasus-viz/site dev`.

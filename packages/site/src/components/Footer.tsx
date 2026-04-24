@@ -32,8 +32,8 @@ export function Footer() {
         logo: <PrecisaLogo />,
         name: 'Precisa Saúde',
       }}
-      githubUrl="https://github.com/Precisa-Saude/datasus-brasil"
-      npmUrl="https://www.npmjs.com/package/@precisa-saude/datasus"
+      githubUrl="https://github.com/Precisa-Saude/datasus-viz"
+      npmUrl="https://www.npmjs.com/package/@precisa-saude/datasus-sdk"
     />
   );
 }

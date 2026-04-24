@@ -40,7 +40,7 @@ scripts existentes.
 
 ## Site de visualização
 
-Produção: URL pública a ser anunciada quando o deploy da Fase 2 entrar no ar (depende do merge do branch `rlueder/pre-206-geo-viz`).
+Produção: URL pública a ser anunciada quando o deploy da Fase 2 entrar no ar.
 
 Dev local:
 

@@ -1,6 +1,6 @@
 # Arquitetura
 
-Visão geral de como `@datasus-brasil/site` transforma microdados do
+Visão geral de como `@datasus-viz/site` transforma microdados do
 DATASUS em uma visualização coroplética interativa no navegador.
 
 ## Objetivo

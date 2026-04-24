@@ -2,7 +2,7 @@
   "name": "datasus-viz",
   "version": "1.3.1",
   "private": true,
-  "description": "Toolkit TS/JS para microdados abertos do DATASUS — decoder DBC puro JavaScript, cliente FTP, schemas tipados",
+  "description": "Geo-visualização (site + CLI) de microdados DATASUS — site MapLibre + DuckDB WASM e CLI consumindo @precisa-saude/datasus-sdk.",
   "homepage": "https://github.com/Precisa-Saude/datasus-viz",
   "bugs": "https://github.com/Precisa-Saude/datasus-viz/issues",
   "repository": {

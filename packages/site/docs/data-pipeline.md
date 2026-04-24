@@ -18,7 +18,7 @@ por que PMTiles), ver [`architecture.md`](./architecture.md).
 
 ## 1. `aggregate-sia-parquet.ts`
 
-**Comando:** `pnpm -F @datasus-brasil/site aggregate`
+**Comando:** `pnpm -F @datasus-viz/site aggregate`
 
 Baixa SIA-PA do FTP DATASUS por mês × UF, filtra para laboratório
 clínico (SIGTAP `02.02`), enriquece com LOINC via
@@ -42,13 +42,13 @@ competência)`, escrevendo Parquet em layout Hive.
 
 ```bash
 # Smoke (1 UF, 1 ano) — poucos MB, termina em minutos
-pnpm -F @datasus-brasil/site aggregate --ufs AC --years 2024
+pnpm -F @datasus-viz/site aggregate --ufs AC --years 2024
 
 # Ano inteiro, todas as UFs — download pesado, horas
-pnpm -F @datasus-brasil/site aggregate --ufs ALL --years 2024
+pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2024
 
 # Série histórica
-pnpm -F @datasus-brasil/site aggregate --ufs ALL --years 2008-2025
+pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2008-2025
 ```
 
 ### Cache
@@ -94,7 +94,7 @@ Compressão: `ZSTD`.
 
 ## 2. `consolidate-parquet.ts`
 
-**Comando:** `pnpm -F @datasus-brasil/site build:consolidate`
+**Comando:** `pnpm -F @datasus-viz/site build:consolidate`
 
 Lê `build/parquet/` (layout Hive) e gera **dois** _datasets_
 otimizados para consumo via DuckDB WASM no browser.
@@ -148,7 +148,7 @@ Resumo: corta ~95 % dos Range Requests por _query_.
 
 ## 3. `build-parquet-index.ts`
 
-**Comando:** `pnpm -F @datasus-brasil/site build:parquet-index`
+**Comando:** `pnpm -F @datasus-viz/site build:parquet-index`
 
 Escaneia `build/parquet/` e emite um manifesto JSON pequeno que o site
 lê no _boot_ para popular seletores e habilitar _drill-down_ — sem
@@ -178,7 +178,7 @@ precisar _query_ SQL para metadados.
 
 ## 4. `build-geo-tiles.sh`
 
-**Comando:** `pnpm -F @datasus-brasil/site build:geo-tiles`
+**Comando:** `pnpm -F @datasus-viz/site build:geo-tiles`
 
 Baixa geometrias oficiais do IBGE, adiciona propriedade `uf` em cada
 _feature_ de município, consolida tudo num único GeoJSON e empacota
@@ -216,7 +216,7 @@ Tempo total: 2–3 minutos em rede comum.
 
 ## 5. `upload-aws.sh`
 
-**Comando:** `pnpm -F @datasus-brasil/site upload:aws`
+**Comando:** `pnpm -F @datasus-viz/site upload:aws`
 
 Sincroniza os artefatos consolidados para S3. Requer AWS CLI
 configurado com credenciais para `sa-east-1`.
@@ -270,19 +270,19 @@ Republicar dados do zero:
 
 ```bash
 # 1. Agregar microdados
-pnpm -F @datasus-brasil/site aggregate --ufs ALL --years 2024
+pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2024
 
 # 2. Consolidar
-pnpm -F @datasus-brasil/site build:consolidate
+pnpm -F @datasus-viz/site build:consolidate
 
 # 3. Gerar manifesto
-pnpm -F @datasus-brasil/site build:parquet-index
+pnpm -F @datasus-viz/site build:parquet-index
 
 # 4. Gerar tiles (pula se geometria não mudou)
-pnpm -F @datasus-brasil/site build:geo-tiles
+pnpm -F @datasus-viz/site build:geo-tiles
 
 # 5. Publicar
-pnpm -F @datasus-brasil/site upload:aws
+pnpm -F @datasus-viz/site upload:aws
 ```
 
 ## _Vintage_ e _schema_ do SIA

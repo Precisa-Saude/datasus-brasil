@@ -1,6 +1,6 @@
 # Desenvolvimento
 
-Como rodar `@datasus-brasil/site` localmente, variáveis de ambiente e
+Como rodar `@datasus-viz/site` localmente, variáveis de ambiente e
 _workflow_ com _worktrees_.
 
 ## Pré-requisitos
@@ -16,7 +16,7 @@ _workflow_ com _worktrees_.
 pnpm install
 ```
 
-Do repo _root_; workspaces resolvem `@datasus-brasil/site` automaticamente.
+Do repo _root_; workspaces resolvem `@datasus-viz/site` automaticamente.
 
 ## Variáveis de ambiente
 
@@ -48,13 +48,13 @@ Vite serve `public/` na raiz do servidor.
 ## _Scripts_ de desenvolvimento
 
 ```bash
-pnpm -F @datasus-brasil/site dev          # Vite em :4322 (main worktree)
-pnpm -F @datasus-brasil/site build        # tsc + vite build
-pnpm -F @datasus-brasil/site preview      # serve dist/
-pnpm -F @datasus-brasil/site lint
-pnpm -F @datasus-brasil/site typecheck
-pnpm -F @datasus-brasil/site test
-pnpm -F @datasus-brasil/site test:coverage
+pnpm -F @datasus-viz/site dev          # Vite em :4322 (main worktree)
+pnpm -F @datasus-viz/site build        # tsc + vite build
+pnpm -F @datasus-viz/site preview      # serve dist/
+pnpm -F @datasus-viz/site lint
+pnpm -F @datasus-viz/site typecheck
+pnpm -F @datasus-viz/site test
+pnpm -F @datasus-viz/site test:coverage
 ```
 
 Do repo _root_, via Turborepo:
@@ -70,11 +70,11 @@ Ver [`data-pipeline.md`](./data-pipeline.md) para cada _script_ em
 detalhe.
 
 ```bash
-pnpm -F @datasus-brasil/site aggregate --ufs AC --years 2024
-pnpm -F @datasus-brasil/site build:consolidate
-pnpm -F @datasus-brasil/site build:parquet-index
-pnpm -F @datasus-brasil/site build:geo-tiles
-pnpm -F @datasus-brasil/site upload:aws
+pnpm -F @datasus-viz/site aggregate --ufs AC --years 2024
+pnpm -F @datasus-viz/site build:consolidate
+pnpm -F @datasus-viz/site build:parquet-index
+pnpm -F @datasus-viz/site build:geo-tiles
+pnpm -F @datasus-viz/site upload:aws
 ```
 
 ## _Worktrees_
@@ -142,8 +142,8 @@ packages/site/
 ## Testes
 
 ```bash
-pnpm -F @datasus-brasil/site test
-pnpm -F @datasus-brasil/site test:coverage
+pnpm -F @datasus-viz/site test
+pnpm -F @datasus-viz/site test:coverage
 ```
 
 Ambiente: `jsdom`, Vitest + `@testing-library/react`.

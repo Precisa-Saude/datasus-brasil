@@ -38,7 +38,7 @@ s3://precisa-saude-datasus-brasil/
 ### Publicação
 
 ```bash
-pnpm -F @datasus-brasil/site upload:aws
+pnpm -F @datasus-viz/site upload:aws
 ```
 
 Pré-requisitos:
@@ -89,7 +89,7 @@ Estratégias:
 ## _Build_ do site
 
 ```bash
-pnpm -F @datasus-brasil/site build
+pnpm -F @datasus-viz/site build
 ```
 
 Gera `packages/site/dist/` (estático). Vite aplica _chunking_ manual

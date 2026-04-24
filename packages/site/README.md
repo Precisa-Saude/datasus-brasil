@@ -1,4 +1,4 @@
-# @datasus-brasil/site
+# @datasus-viz/site
 
 Visualização geográfica interativa de biomarcadores e exames
 laboratoriais faturados ao SUS — SIA-PA (Produção Ambulatorial)
@@ -62,13 +62,13 @@ graceful).
 
 ```bash
 # Smoke (1 UF, 1 ano) — poucos MB, minutos
-pnpm -F @datasus-brasil/site aggregate --ufs AC --years 2024
+pnpm -F @datasus-viz/site aggregate --ufs AC --years 2024
 
 # Ano inteiro, todas as UFs — download pesado, horas
-pnpm -F @datasus-brasil/site aggregate --ufs ALL --years 2024
+pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2024
 
 # Série histórica
-pnpm -F @datasus-brasil/site aggregate --ufs ALL --years 2008-2025
+pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2008-2025
 ```
 
 Cache FTP: `~/.cache/datasus-brasil`. Ver

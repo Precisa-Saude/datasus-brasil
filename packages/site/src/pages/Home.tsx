@@ -14,9 +14,8 @@ async function loadManifest(): Promise<AggregateIndex> {
   const res = await fetch(MANIFEST_URL);
   if (!res.ok) {
     throw new Error(
-      `Falha ao carregar ${MANIFEST_URL} (${res.status}). Rode o pipeline ` +
-        '`pnpm -F @datasus-brasil/site aggregate:parquet` → ' +
-        '`build:parquet-index` → `upload:aws`.',
+      `Falha ao carregar ${MANIFEST_URL} (${res.status}). Rode ` +
+        '`pnpm -F @datasus-viz/site aggregate` e atualize o bucket S3/CloudFront.',
     );
   }
   return (await res.json()) as AggregateIndex;
