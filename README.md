@@ -1,7 +1,14 @@
 # datasus-viz
 
-Geo-visualização interativa de microdados do DATASUS — agregações SIA-SUS
-de laboratório (SIGTAP 02.02 + LOINC) em choropleth Brasil → UF → município.
+[![CI](https://github.com/Precisa-Saude/datasus-viz/actions/workflows/ci.yml/badge.svg)](https://github.com/Precisa-Saude/datasus-viz/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![npm @precisa-saude/datasus-cli](https://img.shields.io/npm/v/@precisa-saude/datasus-cli?label=%40precisa-saude%2Fdatasus-cli)](https://www.npmjs.com/package/@precisa-saude/datasus-cli)
+
+Geo-visualização interativa de microdados do DATASUS — agregações SIA-SUS de laboratório (SIGTAP 02.02 + LOINC) em choropleth Brasil → UF → município.
+
+Mantido pela [Precisa Saúde](https://precisa-saude.com.br). Site público em [datasus-viz.pages.dev](https://datasus-viz.pages.dev).
+
+---
 
 ## Em que família de repos este vive
 
@@ -14,6 +21,8 @@ Precisa Saúde. Para cada responsabilidade existe um repo dedicado:
 | [datasus-sdk](https://github.com/Precisa-Saude/datasus-sdk)            | SDK de alto nível — FTP cliente, schemas tipados (SIA-PA, CNES-ST), terminologia (IBGE, LOINC, SIGTAP, TUSS, CBO), labeling e agregações |
 | [datasus-parquet](https://github.com/Precisa-Saude/datasus-parquet)    | Arquivo público de microdados em Parquet (1:1 do DBC oficial, provenance SHA256), **recurso citável** para pesquisadores                 |
 | [datasus-viz](https://github.com/Precisa-Saude/datasus-viz) **(este)** | Site/CLI de visualização consumindo o arquivo público                                                                                    |
+
+---
 
 ## Escopo deste repo
 
@@ -28,6 +37,8 @@ Tudo que é **decoder** e **SDK** mora nos repos linkados acima — este
 repo consome `@precisa-saude/datasus-dbc@^2.0.0` e
 `@precisa-saude/datasus-sdk@^2.0.1` via npm.
 
+---
+
 ## Instalação da CLI
 
 ```bash
@@ -38,9 +49,11 @@ datasus-brasil --help
 A CLI conserva o nome histórico `datasus-brasil` para evitar quebrar
 scripts existentes.
 
+---
+
 ## Site de visualização
 
-Produção: URL pública a ser anunciada quando o deploy da Fase 2 entrar no ar.
+Produção: [datasus-viz.pages.dev](https://datasus-viz.pages.dev) (Cloudflare Pages, sem custom domain).
 
 Dev local:
 
@@ -51,6 +64,8 @@ pnpm -F @datasus-viz/site dev
 
 Veja [`site/docs/`](site/docs/) para arquitetura,
 pipeline de dados e deployment.
+
+---
 
 ## Uso rápido da CLI
 
@@ -75,12 +90,16 @@ datasus-brasil cnes --uf AC --year 2024 --month 1 --top 5
 
 Todas as flags e formatos em [`packages/cli/README.md`](packages/cli/README.md).
 
+---
+
 ## Cache de microdata
 
 A CLI e o site (via SDK) reutilizam cache local de arquivos DBC:
 
 - `$XDG_CACHE_HOME/datasus-brasil/...` (ou `~/.cache/datasus-brasil/...`)
 - Estrutura idêntica ao FTP oficial; reexecuções hitam cache sem rede.
+
+---
 
 ## Licença
 
