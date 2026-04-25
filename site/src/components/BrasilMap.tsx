@@ -159,7 +159,11 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
   });
 
   // Reset automático: zoom out no drill-down volta pra visão Brasil.
-  map.on('zoomend', () => {
+  // Só reage a zoom-out do usuário (wheel/pinch/dblclick) — programático
+  // (fitBounds do próprio drilldown) não tem originalEvent e fica de fora,
+  // senão o fit pra UF dispara o reset e cancela o drill antes de mostrar.
+  map.on('zoomend', (e) => {
+    if (!e.originalEvent) return;
     const latest = refs.latestProps.current;
     if (!latest || latest.selectedUf === null) return;
     if (map.getZoom() < 4.2) latest.onZoomOutReset();
@@ -180,6 +184,9 @@ export function BrasilMap(props: BrasilMapProps) {
     if (!containerRef.current) return;
     ensurePmtilesProtocol();
     const map = new maplibregl.Map({
+      // compact: true mantém a atribuição colapsada no ícone (i) por
+      // padrão, sem ocupar espaço sobre o mapa.
+      attributionControl: { compact: true },
       bearing: 180,
       bounds: BRAZIL_BOUNDS,
       container: containerRef.current,

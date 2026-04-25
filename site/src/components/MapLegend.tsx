@@ -3,7 +3,7 @@ export function MapLegend({ drilldown }: { drilldown: boolean }) {
   return (
     <div
       aria-hidden="true"
-      className="border-border bg-card/95 pointer-events-none absolute right-4 bottom-10 z-10 rounded-md border px-3 py-2 font-margem text-[11px] shadow-md backdrop-blur-sm"
+      className="border-border bg-card/95 pointer-events-none absolute bottom-6 left-4 z-10 rounded-md border px-3 py-2 font-margem text-[11px] shadow-md backdrop-blur-sm"
     >
       <div className="text-muted-foreground mb-1">
         Volume de exames — {drilldown ? 'por município' : 'por UF'}

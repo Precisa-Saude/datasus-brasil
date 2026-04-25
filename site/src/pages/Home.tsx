@@ -31,15 +31,17 @@ export default function Home() {
   const [error, setError] = useState<null | string>(null);
   const [refitUfSignal, setRefitUfSignal] = useState(0);
 
+  // Offset = altura do header (h-16 = 4rem) + respiro de 1.5rem.
+  const PANEL_TOP = 'calc(4rem + 1.5rem)';
   const panelStyle = {
     left: 'max((100vw - var(--grid-max-w)) / 2, 1rem)',
-    top: '10%',
+    top: PANEL_TOP,
     width: 'calc(var(--col-w) * 3 + 2rem)',
   } as const;
   const detailStyle = {
-    height: '80%',
+    bottom: '1.5rem',
     right: 'max((100vw - var(--grid-max-w)) / 2, 1rem)',
-    top: '10%',
+    top: PANEL_TOP,
     width: 'calc(var(--col-w) * 4 + 3rem)',
   } as const;
 

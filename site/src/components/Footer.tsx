@@ -27,10 +27,6 @@ function PrecisaLogo() {
 export function Footer() {
   return (
     <OpenFooter
-      // Em viewports pequenos ocultamos o disclaimer e reduzimos o
-      // padding pra dar mais espaço pro mapa. Em md+ volta o layout
-      // padrão do OpenFooter.
-      className="[&>div]:py-4 md:[&>div]:py-10 [&_p]:hidden md:[&_p]:block"
       brand={{
         href: 'https://precisa-saude.com.br',
         logo: <PrecisaLogo />,

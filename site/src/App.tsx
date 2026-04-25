@@ -1,5 +1,5 @@
 import { GridOverlay } from '@precisa-saude/ui/decorative';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Footer } from './components/Footer';
@@ -8,6 +8,9 @@ import Home from './pages/Home';
 import Sobre from './pages/Sobre';
 
 export default function App() {
+  // O mapa ocupa a tela inteira em /, então o footer só faz sentido nas
+  // páginas de conteúdo (ex.: /sobre).
+  const isMapRoute = useLocation().pathname === '/';
   return (
     <div className="flex min-h-screen flex-col">
       <Nav />
@@ -20,7 +23,7 @@ export default function App() {
           </Routes>
         </ErrorBoundary>
       </main>
-      <Footer />
+      {!isMapRoute ? <Footer /> : null}
     </div>
   );
 }
