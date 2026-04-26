@@ -1,6 +1,8 @@
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
+import { ComboboxSlots } from '@/components/TendenciasSlots';
 import type { TrendSeries } from '@/components/TrendChart';
 import { TrendChart } from '@/components/TrendChart';
 import type { ComboboxItem } from '@/components/ui/combobox';
@@ -39,80 +41,73 @@ const PAGE_GRID_STYLE = {
   maxWidth: 'calc(var(--col-w) * 12 + 11rem)',
 } as const;
 
-interface SlotRemoveButtonProps {
-  ariaLabel: string;
-  onClick: () => void;
+/**
+ * Lê o estado inicial dos search params da URL (compartilhamento).
+ * Schema (estilo formulário HTML — chaves repetidas para múltiplos
+ * valores, evita o `%2C` ilegível de listas separadas por vírgula):
+ *   ?mode=exames|ufs                       (default: exames)
+ *   ?uf=SP                                  (escopo, modo exames; ausente = Brasil)
+ *   ?loincs=2160-0&loincs=2345-7&loincs=…  (até 3, modo exames)
+ *   ?loinc=2160-0                           (exame único, modo ufs)
+ *   ?ufs=SP&ufs=RJ&ufs=MG                  (até 3, modo ufs)
+ *
+ * Valores inválidos (fora do manifest ou do schema) são descartados.
+ */
+function parseUrlState(sp: URLSearchParams) {
+  const mode: Mode = sp.get('mode') === 'ufs' ? 'ufs' : 'exames';
+  return {
+    loinc: sp.get('loinc'),
+    loincs: sp.getAll('loincs').filter(Boolean).slice(0, MAX_SERIES),
+    mode,
+    uf: sp.get('uf'),
+    ufs: sp.getAll('ufs').filter(Boolean).slice(0, MAX_SERIES),
+  };
 }
 
-function SlotRemoveButton({ ariaLabel, onClick }: SlotRemoveButtonProps) {
-  return (
-    <button
-      aria-label={ariaLabel}
-      className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md p-1.5 transition-colors"
-      onClick={onClick}
-      type="button"
-    >
-      <X className="size-4" />
-    </button>
-  );
+interface SeedState {
+  loincs: string[];
+  mode: Mode;
+  singleLoinc: null | string;
+  ufList: string[];
+  ufSigla: string;
 }
 
-function SlotBullet({ idx }: { idx: number }) {
-  return (
-    <span
-      aria-hidden
-      className="size-3 shrink-0 rounded-full"
-      style={{ background: SERIES_COLORS[idx] ?? '#6b7280' }}
-    />
-  );
-}
+function computeSeedState(
+  m: AggregateIndex,
+  topLoincs: string[],
+  topUfs: string[],
+  url: ReturnType<typeof parseUrlState>,
+): SeedState {
+  const knownLoinc = (l: string) => m.biomarkers.some((b) => b.loinc === l);
+  const knownUf = (u: string) => m.availableUFs.includes(u);
 
-interface ComboboxSlotsProps {
-  ariaPrefix: string;
-  items: ComboboxItem[];
-  removeLabel: string;
-  searchPlaceholder: string;
-  values: string[];
-  onChange: (idx: number, value: string) => void;
-  onRemove: (idx: number) => void;
-}
+  const fromUrlLoincs = url.loincs.filter(knownLoinc);
+  const fromTopLoincs = topLoincs.filter(knownLoinc);
+  const loincs =
+    fromUrlLoincs.length > 0
+      ? fromUrlLoincs
+      : fromTopLoincs.length > 0
+        ? fromTopLoincs
+        : [m.biomarkers[0]?.loinc].filter((x): x is string => Boolean(x));
 
-function ComboboxSlots({
-  ariaPrefix,
-  items,
-  onChange,
-  onRemove,
-  removeLabel,
-  searchPlaceholder,
-  values,
-}: ComboboxSlotsProps) {
-  return (
-    <>
-      {values.map((v, idx) => (
-        <div className="flex items-center gap-2" key={`${ariaPrefix}-${idx}-${v}`}>
-          <SlotBullet idx={idx} />
-          <div className="min-w-0 flex-1">
-            <Combobox
-              ariaLabel={`${ariaPrefix} ${idx + 1}`}
-              items={items}
-              onChange={(nv) => onChange(idx, nv)}
-              searchPlaceholder={searchPlaceholder}
-              value={v}
-            />
-          </div>
-          {values.length > 1 ? (
-            <SlotRemoveButton
-              ariaLabel={`${removeLabel} ${idx + 1}`}
-              onClick={() => onRemove(idx)}
-            />
-          ) : null}
-        </div>
-      ))}
-    </>
-  );
+  const singleLoinc = url.loinc && knownLoinc(url.loinc) ? url.loinc : (loincs[0] ?? null);
+
+  const fromUrlUfs = url.ufs.filter(knownUf);
+  const fromTopUfs = topUfs.filter(knownUf);
+  const ufList =
+    fromUrlUfs.length > 0
+      ? fromUrlUfs
+      : fromTopUfs.length > 0
+        ? fromTopUfs
+        : m.availableUFs.slice(0, MAX_SERIES);
+
+  const ufSigla = url.uf && knownUf(url.uf) ? url.uf : NATIONAL;
+
+  return { loincs, mode: url.mode, singleLoinc, ufList, ufSigla };
 }
 
 export default function Tendencias() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [manifest, setManifest] = useState<AggregateIndex | null>(null);
   const [mode, setMode] = useState<Mode>('exames');
   const [loincs, setLoincs] = useState<string[]>([]);
@@ -130,26 +125,35 @@ export default function Tendencias() {
       fetchTopUfsByVolume(MAX_SERIES),
     ]).then(
       ([m, topLoincs, topUfs]) => {
+        const seed = computeSeedState(m, topLoincs, topUfs, parseUrlState(searchParams));
         setManifest(m);
-        // Defaults baseados em volume real, não ordem alfabética. Fallback
-        // alfabético/primeiros disponíveis se a query top-N falhar ou
-        // voltar vazia.
-        const validLoincs = topLoincs.filter((l) => m.biomarkers.some((b) => b.loinc === l));
-        const seedLoincs =
-          validLoincs.length > 0
-            ? validLoincs
-            : [m.biomarkers[0]?.loinc].filter((x): x is string => Boolean(x));
-        if (seedLoincs.length > 0) {
-          setLoincs(seedLoincs);
-          setSingleLoinc(seedLoincs[0] ?? null);
-        }
-        const validUfs = topUfs.filter((u) => m.availableUFs.includes(u));
-        const seedUfs = validUfs.length > 0 ? validUfs : m.availableUFs.slice(0, MAX_SERIES);
-        if (seedUfs.length > 0) setUfList(seedUfs);
+        setMode(seed.mode);
+        if (seed.loincs.length > 0) setLoincs(seed.loincs);
+        setSingleLoinc(seed.singleLoinc);
+        setUfSigla(seed.ufSigla);
+        if (seed.ufList.length > 0) setUfList(seed.ufList);
       },
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
+    // Inicialização única; sync subsequente fica a cargo do efeito abaixo.
   }, []);
+
+  // Sincroniza o estado atual de volta na URL (replace, sem poluir history).
+  useEffect(() => {
+    if (!manifest) return;
+    const next = new URLSearchParams();
+    next.set('mode', mode);
+    if (mode === 'exames') {
+      if (ufSigla !== NATIONAL) next.set('uf', ufSigla);
+      // Chaves repetidas em vez de lista separada por vírgula — o
+      // serializador do URLSearchParams encodaria a vírgula como %2C.
+      for (const l of loincs) next.append('loincs', l);
+    } else {
+      if (singleLoinc) next.set('loinc', singleLoinc);
+      for (const u of ufList) next.append('ufs', u);
+    }
+    setSearchParams(next, { replace: true });
+  }, [manifest, mode, ufSigla, loincs, singleLoinc, ufList, setSearchParams]);
 
   // Carrega dados conforme o modo. Cada modo dispara uma única query.
   useEffect(() => {
@@ -311,6 +315,14 @@ export default function Tendencias() {
         value={mode}
       />
 
+      {/* Estado de boot — sem manifest ainda nada de filtro/chart faz sentido. */}
+      {!manifest && error === null ? (
+        <div className="border-border bg-card col-span-full mt-2 flex h-[420px] flex-col items-center justify-center gap-3 rounded-lg border p-6 shadow-sm">
+          <div className="border-muted-foreground/30 border-t-primary size-8 animate-spin rounded-full border-2" />
+          <p className="text-muted-foreground font-sans text-sm">Carregando agregados…</p>
+        </div>
+      ) : null}
+
       {/* Escopo geográfico (apenas modo exames) — combobox com busca. */}
       {mode === 'exames' && manifest ? (
         <label className="col-span-full flex flex-col gap-1 md:col-span-4">
@@ -343,27 +355,30 @@ export default function Tendencias() {
         </label>
       ) : null}
 
-      {/* Cabeçalho da seção de slots. */}
-      <div className="col-span-full mt-2 flex items-center justify-between">
-        <span className="text-muted-foreground font-sans text-xs font-medium uppercase tracking-wide">
-          {slotsLabel} ({slotsCount}/{MAX_SERIES})
-        </span>
-        {manifest && slotsRemaining > 0 ? (
-          <button
-            className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2 py-1 font-sans text-xs font-medium transition-colors"
-            onClick={mode === 'exames' ? handleAddLoincSlot : handleAddUfSlot}
-            type="button"
-          >
-            <Plus className="size-3.5" /> {addLabel}
-          </button>
-        ) : null}
-      </div>
+      {/* Cabeçalho da seção de slots — só após boot. */}
+      {manifest ? (
+        <div className="col-span-full mt-2 flex items-center justify-between">
+          <span className="text-muted-foreground font-sans text-xs font-medium uppercase tracking-wide">
+            {slotsLabel} ({slotsCount}/{MAX_SERIES})
+          </span>
+          {slotsRemaining > 0 ? (
+            <button
+              className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2 py-1 font-sans text-xs font-medium transition-colors"
+              onClick={mode === 'exames' ? handleAddLoincSlot : handleAddUfSlot}
+              type="button"
+            >
+              <Plus className="size-3.5" /> {addLabel}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {manifest ? (
         <div className="col-span-full grid grid-cols-1 gap-4 md:grid-cols-3">
           {mode === 'exames' ? (
             <ComboboxSlots
               ariaPrefix="Biomarcador"
+              colors={SERIES_COLORS}
               items={biomarkerItems}
               onChange={handleLoincSlotChange}
               onRemove={handleRemoveLoincSlot}
@@ -374,6 +389,7 @@ export default function Tendencias() {
           ) : (
             <ComboboxSlots
               ariaPrefix="UF"
+              colors={SERIES_COLORS}
               items={ufItems}
               onChange={handleUfSlotChange}
               onRemove={handleRemoveUfSlot}
@@ -385,23 +401,26 @@ export default function Tendencias() {
         </div>
       ) : null}
 
-      <section className="border-border bg-card col-span-full mt-2 rounded-lg border p-6 shadow-sm">
-        <div className="mb-4 flex items-baseline justify-between">
-          <p className="text-muted-foreground font-sans text-xs uppercase tracking-wide">
-            {escopoLabel}
-          </p>
-          <p className="text-muted-foreground font-sans text-xs">
-            Volume mensal de exames · valor R$ no tooltip
-          </p>
-        </div>
-        {loading || !data ? (
-          <div className="text-muted-foreground flex h-[360px] items-center justify-center font-sans text-sm">
-            Carregando série…
+      {manifest ? (
+        <section className="border-border bg-card col-span-full mt-2 rounded-lg border p-6 shadow-sm">
+          <div className="mb-4 flex items-baseline justify-between">
+            <p className="text-muted-foreground font-sans text-xs uppercase tracking-wide">
+              {escopoLabel}
+            </p>
+            <p className="text-muted-foreground font-sans text-xs">
+              Volume mensal de exames · valor R$ no tooltip
+            </p>
           </div>
-        ) : (
-          <TrendChart data={data} series={series} />
-        )}
-      </section>
+          {loading || !data ? (
+            <div className="text-muted-foreground flex h-[360px] items-center justify-center gap-3 font-sans text-sm">
+              <div className="border-muted-foreground/30 border-t-primary size-5 animate-spin rounded-full border-2" />
+              Carregando série…
+            </div>
+          ) : (
+            <TrendChart data={data} series={series} />
+          )}
+        </section>
+      ) : null}
 
       {error !== null ? (
         <div className="border-destructive/30 bg-destructive/10 text-destructive col-span-full mt-2 rounded-lg border p-4 font-sans text-sm">
