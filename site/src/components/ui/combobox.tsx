@@ -50,9 +50,13 @@ export function Combobox({
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const selected = useMemo(() => items.find((it) => it.value === value), [items, value]);
+  // Sem opções: não abre o popover e mostra "Sem opções" no trigger.
+  // A lista fica desabilitada via `disabled` para que o foco/click não
+  // tente expandir um menu vazio.
+  const isEmpty = items.length === 0;
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover onOpenChange={isEmpty ? undefined : setOpen} open={isEmpty ? false : open}>
       <PopoverTrigger asChild>
         <Button
           aria-expanded={open}
@@ -61,10 +65,13 @@ export function Combobox({
             'border-border bg-background hover:bg-background w-full justify-between border font-sans font-normal text-foreground',
             triggerClassName,
           )}
+          disabled={isEmpty}
           role="combobox"
           variant="outline"
         >
-          <span className="truncate">{selected ? selected.label : placeholder}</span>
+          <span className="truncate">
+            {isEmpty ? 'Sem opções' : selected ? selected.label : placeholder}
+          </span>
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>

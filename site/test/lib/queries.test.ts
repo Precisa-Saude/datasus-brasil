@@ -36,10 +36,9 @@ describe('fetchUfAggregates', () => {
     expect(sql).toContain('CAST(valorAprovadoBRL AS DOUBLE)');
   });
 
-  it('escapa aspas simples na competência pra evitar SQL injection', async () => {
-    await fetchUfAggregates("2024'01");
-    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain("'2024''01'");
+  it('rejeita competência com caracteres fora do whitelist (defesa contra SQL injection)', async () => {
+    await expect(fetchUfAggregates("2024'01")).rejects.toThrow(/competencia/);
+    expect(queryAllMock).not.toHaveBeenCalled();
   });
 
   it('propaga as linhas retornadas pelo DuckDB', async () => {
@@ -79,11 +78,14 @@ describe('fetchTrend', () => {
     expect(sql).toContain("AND ufSigla = 'SP'");
   });
 
-  it('escapa aspas em loinc e em ufSigla', async () => {
-    await fetchTrend(["a'b"], "S'P");
-    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain("'a''b'");
-    expect(sql).toContain("'S''P'");
+  it('rejeita LOINC com caractere fora do whitelist', async () => {
+    await expect(fetchTrend(["a'b"], null)).rejects.toThrow(/loinc/);
+    expect(queryAllMock).not.toHaveBeenCalled();
+  });
+
+  it('rejeita ufSigla com caractere fora do whitelist', async () => {
+    await expect(fetchTrend(['2160-0'], "S'P")).rejects.toThrow(/ufSigla/);
+    expect(queryAllMock).not.toHaveBeenCalled();
   });
 });
 
@@ -159,10 +161,9 @@ describe('fetchMunicipioAggregates', () => {
     expect(sql).toContain("'RJ' AS ufSigla");
   });
 
-  it('escapa aspas simples tanto em uf quanto em competência', async () => {
-    await fetchMunicipioAggregates("A'C", "2024'01");
-    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain("'A''C'");
-    expect(sql).toContain("'2024''01'");
+  it('rejeita uf e competência com caracteres fora do whitelist', async () => {
+    await expect(fetchMunicipioAggregates("A'C", '2024-01')).rejects.toThrow(/ufSigla/);
+    await expect(fetchMunicipioAggregates('SP', "2024'01")).rejects.toThrow(/competencia/);
+    expect(queryAllMock).not.toHaveBeenCalled();
   });
 });

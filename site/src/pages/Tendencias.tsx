@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react';
+import type { Dispatch, SetStateAction } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -72,6 +73,37 @@ interface SeedState {
   ufSigla: string;
 }
 
+interface SlotHandlers {
+  add: () => void;
+  change: (idx: number, value: string) => void;
+  remove: (idx: number) => void;
+}
+
+/**
+ * Geradora de handlers `change/add/remove` para um array de slots
+ * (até MAX_SERIES). Mantém os updates imutáveis e usa um callback de
+ * candidato para escolher o próximo valor a ser adicionado.
+ */
+function makeSlotHandlers(
+  setter: Dispatch<SetStateAction<string[]>>,
+  pickNext: () => string | undefined,
+): SlotHandlers {
+  return {
+    add: () => {
+      const candidate = pickNext();
+      if (!candidate) return;
+      setter((prev) => (prev.length >= MAX_SERIES ? prev : [...prev, candidate]));
+    },
+    change: (idx, value) =>
+      setter((prev) => {
+        const next = [...prev];
+        next[idx] = value;
+        return next;
+      }),
+    remove: (idx) => setter((prev) => prev.filter((_, i) => i !== idx)),
+  };
+}
+
 function computeSeedState(
   m: AggregateIndex,
   topLoincs: string[],
@@ -117,6 +149,14 @@ export default function Tendencias() {
   const [data, setData] = useState<null | TrendPoint[]>(null);
   const [error, setError] = useState<null | string>(null);
   const [loading, setLoading] = useState(false);
+  const [bootKey, setBootKey] = useState(0);
+
+  const retry = (): void => {
+    setError(null);
+    setManifest(null);
+    setData(null);
+    setBootKey((k) => k + 1);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -135,8 +175,9 @@ export default function Tendencias() {
       },
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
-    // Inicialização única; sync subsequente fica a cargo do efeito abaixo.
-  }, []);
+    // bootKey nas deps permite ao botão "Tentar novamente" re-executar
+    // o boot completo (manifest + top-N).
+  }, [bootKey]);
 
   // Sincroniza o estado atual de volta na URL (replace, sem poluir history).
   useEffect(() => {
@@ -238,55 +279,22 @@ export default function Tendencias() {
     }));
   }, [mode, loincs, ufList, biomarkersByLoinc]);
 
-  const handleLoincSlotChange = (index: number, value: string): void => {
-    setLoincs((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      return next;
-    });
-  };
+  const loincHandlers = makeSlotHandlers(
+    setLoincs,
+    () => manifest?.biomarkers.find((b) => !loincs.includes(b.loinc))?.loinc,
+  );
+  const ufHandlers = makeSlotHandlers(setUfList, () =>
+    manifest?.availableUFs.find((u) => !ufList.includes(u)),
+  );
 
-  const handleAddLoincSlot = (): void => {
-    if (!manifest || loincs.length >= MAX_SERIES) return;
-    const used = new Set(loincs);
-    const candidate = manifest.biomarkers.find((b) => !used.has(b.loinc));
-    if (!candidate) return;
-    setLoincs((prev) => [...prev, candidate.loinc]);
-  };
-
-  const handleRemoveLoincSlot = (index: number): void => {
-    setLoincs((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleUfSlotChange = (index: number, value: string): void => {
-    setUfList((prev) => {
-      const next = [...prev];
-      next[index] = value;
-      return next;
-    });
-  };
-
-  const handleAddUfSlot = (): void => {
-    if (!manifest || ufList.length >= MAX_SERIES) return;
-    const used = new Set(ufList);
-    const candidate = manifest.availableUFs.find((u) => !used.has(u));
-    if (!candidate) return;
-    setUfList((prev) => [...prev, candidate]);
-  };
-
-  const handleRemoveUfSlot = (index: number): void => {
-    setUfList((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const escopoLabel =
-    mode === 'exames'
-      ? ufSigla === NATIONAL
-        ? 'Brasil'
-        : ufSigla
-      : (() => {
-          if (!singleLoinc) return '—';
-          return biomarkersByLoinc[singleLoinc] ?? singleLoinc;
-        })();
+  let escopoLabel: string;
+  if (mode === 'exames') {
+    escopoLabel = ufSigla === NATIONAL ? 'Brasil' : ufSigla;
+  } else if (singleLoinc) {
+    escopoLabel = biomarkersByLoinc[singleLoinc] ?? singleLoinc;
+  } else {
+    escopoLabel = '—';
+  }
 
   const slotsCount = mode === 'exames' ? loincs.length : ufList.length;
   const slotsRemaining = MAX_SERIES - slotsCount;
@@ -364,7 +372,7 @@ export default function Tendencias() {
           {slotsRemaining > 0 ? (
             <button
               className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2 py-1 font-sans text-xs font-medium transition-colors"
-              onClick={mode === 'exames' ? handleAddLoincSlot : handleAddUfSlot}
+              onClick={mode === 'exames' ? loincHandlers.add : ufHandlers.add}
               type="button"
             >
               <Plus className="size-3.5" /> {addLabel}
@@ -380,8 +388,8 @@ export default function Tendencias() {
               ariaPrefix="Biomarcador"
               colors={SERIES_COLORS}
               items={biomarkerItems}
-              onChange={handleLoincSlotChange}
-              onRemove={handleRemoveLoincSlot}
+              onChange={loincHandlers.change}
+              onRemove={loincHandlers.remove}
               removeLabel="Remover exame"
               searchPlaceholder="Buscar exame…"
               values={loincs}
@@ -391,8 +399,8 @@ export default function Tendencias() {
               ariaPrefix="UF"
               colors={SERIES_COLORS}
               items={ufItems}
-              onChange={handleUfSlotChange}
-              onRemove={handleRemoveUfSlot}
+              onChange={ufHandlers.change}
+              onRemove={ufHandlers.remove}
               removeLabel="Remover UF"
               searchPlaceholder="Buscar UF…"
               values={ufList}
@@ -423,9 +431,18 @@ export default function Tendencias() {
       ) : null}
 
       {error !== null ? (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive col-span-full mt-2 rounded-lg border p-4 font-sans text-sm">
-          <p className="font-medium">Não foi possível carregar a série.</p>
-          <p className="mt-1 text-xs">{error}</p>
+        <div className="border-destructive/30 bg-destructive/10 text-destructive col-span-full mt-2 flex flex-col gap-3 rounded-lg border p-4 font-sans text-sm">
+          <div>
+            <p className="font-medium">Não foi possível carregar a série.</p>
+            <p className="mt-1 text-xs">{error}</p>
+          </div>
+          <button
+            className="border-destructive/40 hover:bg-destructive/15 inline-flex w-fit items-center gap-1 rounded-md border px-3 py-1 text-xs font-medium transition-colors"
+            onClick={retry}
+            type="button"
+          >
+            Tentar novamente
+          </button>
         </div>
       ) : null}
     </div>

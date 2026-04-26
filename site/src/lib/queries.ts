@@ -1,6 +1,25 @@
 import { UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
 import { queryAll } from './duckdb';
 
+/**
+ * Defesa em profundidade contra SQL injection. Os valores que entram
+ * nas queries (LOINC, UF, competência) sempre vêm do manifest público
+ * ou de search params validados contra ele, mas a função a seguir
+ * garante que mesmo se algo escapar do whitelist o conteúdo só pode
+ * conter caracteres alfanuméricos + dash/underscore/dot.
+ *
+ * Em adição, todas as queries fazem escape de aspas via `.replace(/'/g, "''")`
+ * — duplo zero-trust.
+ */
+const SAFE_IDENTIFIER = /^[A-Za-z0-9_.-]+$/;
+function assertSafe(label: string, value: string): void {
+  if (!SAFE_IDENTIFIER.test(value)) {
+    throw new Error(
+      `Valor inválido para ${label}: "${value}". Esperado: alfanumérico, "-", "_" ou ".".`,
+    );
+  }
+}
+
 export interface UfAggregateRow {
   competencia: string;
   loinc: string;
@@ -25,6 +44,7 @@ export interface MunicipioAggregateRow {
  * S3 por query, em vez de varrer todas as partições anuais.
  */
 export async function fetchUfAggregates(competencia: string): Promise<UfAggregateRow[]> {
+  assertSafe('competencia', competencia);
   // CAST para DOUBLE evita BigInt no cliente — int64 vira BigInt no
   // DuckDB WASM por default, o que quebra `Math.max(...numbers)`.
   return queryAll<UfAggregateRow>(`
@@ -49,6 +69,8 @@ export async function fetchMunicipioAggregates(
   ufSigla: string,
   competencia: string,
 ): Promise<MunicipioAggregateRow[]> {
+  assertSafe('ufSigla', ufSigla);
+  assertSafe('competencia', competencia);
   const safeUf = ufSigla.replace(/'/g, "''");
   return queryAll<MunicipioAggregateRow>(`
     SELECT
@@ -83,6 +105,8 @@ export interface TrendPoint {
  */
 export async function fetchTrend(loincs: string[], ufSigla: null | string): Promise<TrendPoint[]> {
   if (loincs.length === 0) return [];
+  for (const l of loincs) assertSafe('loinc', l);
+  if (ufSigla !== null) assertSafe('ufSigla', ufSigla);
   const safeLoincs = loincs.map((l) => `'${l.replace(/'/g, "''")}'`).join(', ');
   const ufFilter = ufSigla === null ? '' : `AND ufSigla = '${ufSigla.replace(/'/g, "''")}'`;
   return queryAll<TrendPoint>(`
@@ -140,6 +164,8 @@ export async function fetchTopUfsByVolume(n: number): Promise<string[]> {
  */
 export async function fetchTrendByUf(loinc: string, ufSiglas: string[]): Promise<TrendPoint[]> {
   if (ufSiglas.length === 0) return [];
+  assertSafe('loinc', loinc);
+  for (const u of ufSiglas) assertSafe('ufSigla', u);
   const safeLoinc = loinc.replace(/'/g, "''");
   const safeUfs = ufSiglas.map((u) => `'${u.replace(/'/g, "''")}'`).join(', ');
   return queryAll<TrendPoint>(`
