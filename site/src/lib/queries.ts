@@ -63,3 +63,93 @@ export async function fetchMunicipioAggregates(
     WHERE competencia = '${competencia.replace(/'/g, "''")}'
   `);
 }
+
+export interface TrendPoint {
+  competencia: string;
+  /** Identificador da série — LOINC ou UF, conforme o modo da consulta. */
+  seriesId: string;
+  valorAprovadoBRL: number;
+  volumeExames: number;
+}
+
+/**
+ * Série temporal de um ou mais LOINCs ao longo de todas as
+ * competências, para sobreposição/comparação no gráfico.
+ *
+ * Quando `ufSigla` é `null`, soma todas as UFs (visão nacional);
+ * quando informado, retorna apenas a UF pedida. Sempre lê o
+ * `uf-totals.parquet` consolidado — uma única requisição S3
+ * independente do número de LOINCs (pushdown via filtro `IN`).
+ */
+export async function fetchTrend(loincs: string[], ufSigla: null | string): Promise<TrendPoint[]> {
+  if (loincs.length === 0) return [];
+  const safeLoincs = loincs.map((l) => `'${l.replace(/'/g, "''")}'`).join(', ');
+  const ufFilter = ufSigla === null ? '' : `AND ufSigla = '${ufSigla.replace(/'/g, "''")}'`;
+  return queryAll<TrendPoint>(`
+    SELECT
+      competencia,
+      loinc AS seriesId,
+      CAST(SUM(volumeExames) AS DOUBLE) AS volumeExames,
+      CAST(SUM(valorAprovadoBRL) AS DOUBLE) AS valorAprovadoBRL
+    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    WHERE loinc IN (${safeLoincs})
+    ${ufFilter}
+    GROUP BY competencia, loinc
+    ORDER BY competencia
+  `);
+}
+
+/**
+ * Top-N LOINCs por volume total acumulado (todas as UFs, todas as
+ * competências). Usado para semear defaults de UI sem cair em ordem
+ * alfabética. Lê o consolidado `uf-totals.parquet` — uma única
+ * requisição.
+ */
+export async function fetchTopLoincsByVolume(n: number): Promise<string[]> {
+  if (n <= 0) return [];
+  const rows = await queryAll<{ loinc: string }>(`
+    SELECT loinc
+    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    GROUP BY loinc
+    ORDER BY SUM(volumeExames) DESC
+    LIMIT ${Math.floor(n)}
+  `);
+  return rows.map((r) => r.loinc);
+}
+
+/**
+ * Top-N UFs por volume total acumulado. Usado para semear defaults
+ * de UI no modo "comparar UFs".
+ */
+export async function fetchTopUfsByVolume(n: number): Promise<string[]> {
+  if (n <= 0) return [];
+  const rows = await queryAll<{ ufSigla: string }>(`
+    SELECT ufSigla
+    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    GROUP BY ufSigla
+    ORDER BY SUM(volumeExames) DESC
+    LIMIT ${Math.floor(n)}
+  `);
+  return rows.map((r) => r.ufSigla);
+}
+
+/**
+ * Série temporal de um único LOINC quebrado por UF — uma série
+ * por UF para comparação geográfica. Mesma fonte (`uf-totals.parquet`),
+ * uma única requisição.
+ */
+export async function fetchTrendByUf(loinc: string, ufSiglas: string[]): Promise<TrendPoint[]> {
+  if (ufSiglas.length === 0) return [];
+  const safeLoinc = loinc.replace(/'/g, "''");
+  const safeUfs = ufSiglas.map((u) => `'${u.replace(/'/g, "''")}'`).join(', ');
+  return queryAll<TrendPoint>(`
+    SELECT
+      competencia,
+      ufSigla AS seriesId,
+      CAST(volumeExames AS DOUBLE) AS volumeExames,
+      CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
+    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    WHERE loinc = '${safeLoinc}' AND ufSigla IN (${safeUfs})
+    ORDER BY competencia
+  `);
+}

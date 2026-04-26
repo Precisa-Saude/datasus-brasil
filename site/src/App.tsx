@@ -6,6 +6,7 @@ import { Footer } from './components/Footer';
 import { Nav } from './components/Nav';
 import Home from './pages/Home';
 import Sobre from './pages/Sobre';
+import Tendencias from './pages/Tendencias';
 
 export default function App() {
   // O mapa ocupa a tela inteira em /, então o footer só faz sentido nas
@@ -19,6 +20,7 @@ export default function App() {
         <ErrorBoundary>
           <Routes>
             <Route element={<Home />} path="/" />
+            <Route element={<Tendencias />} path="/tendencias" />
             <Route element={<Sobre />} path="/sobre" />
           </Routes>
         </ErrorBoundary>
