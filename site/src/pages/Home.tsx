@@ -21,6 +21,17 @@ async function loadManifest(): Promise<AggregateIndex> {
   return (await res.json()) as AggregateIndex;
 }
 
+const GERADO_EM_FMT = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+
+function formatGeradoEm(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : GERADO_EM_FMT.format(d);
+}
+
 export default function Home() {
   const [manifest, setManifest] = useState<AggregateIndex | null>(null);
   const [ufData, setUfData] = useState<UfAggregate[] | null>(null);
@@ -258,6 +269,12 @@ export default function Home() {
               ? `${manifest.years[0]}–${manifest.years[manifest.years.length - 1]}`
               : '—'}
             .
+          </p>
+          <p
+            className="text-muted-foreground/80 font-margem text-[11px] leading-snug"
+            title={`Anos cobertos: ${manifest.years.join(', ') || '—'} · ${manifest.competencias.length} competências`}
+          >
+            Atualizado em {formatGeradoEm(manifest.geradoEm)}
           </p>
         </aside>
       ) : null}

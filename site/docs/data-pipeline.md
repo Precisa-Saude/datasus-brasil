@@ -3,7 +3,80 @@
 Documenta cada _script_ em `site/scripts/` — objetivo,
 argumentos, entrada, saída, e _schema_ dos artefatos gerados.
 
-Fluxo completo:
+## Pipeline _end-to-end_ (datasus-parquet → datasus-viz)
+
+A cadeia completa atravessa **dois repos** com bucket S3 compartilhado
+(`precisa-saude-datasus-brasil`, _fronted_ por `dfdu08vi8wsus.cloudfront.net`):
+
+```
+                             ┌──────────────── datasus-parquet ────────────────┐
+ftp.datasus.gov.br → archive-sia-pa → emit-provenance → aws s3 sync → s3://…/sia-pa/{ano,uf,mes}=…/part.parquet
+                                                                       └→ s3://…/sia-pa/provenance/…
+                             └──────────────────────────────────────────────────┘
+                                                                            │
+                                                                       (CloudFront)
+                                                                            │
+                             ┌─────────────────── datasus-viz ──────────────┴───┐
+                             aggregate-sia-parquet → consolidate-parquet → build-parquet-index
+                                                                            └→ build-geo-tiles
+                                                                            └→ upload-aws → s3://…/parquet-opt/, manifest/
+                             └────────────────────────────────────────────────┘
+                                                                            │
+                                                                            ▼
+                                                                   site (CloudFront)
+```
+
+**O que cada metade entrega:**
+
+- **`datasus-parquet`** publica os _Parquets brutos_ (1:1 com os DBC
+  originais, todas as colunas, layout
+  `ano=YYYY/uf=XX/mes=MM/part.parquet`) acompanhados de
+  `provenance/*.json` (SHA256 + _schema_ + git SHA). Documentado em
+  [`datasus-parquet/README.md`](https://github.com/Precisa-Saude/datasus-parquet#readme).
+- **`datasus-viz`** consome os _Parquets brutos_ via CloudFront,
+  filtra para SIGTAP `02.02` (laboratório clínico), enriquece com
+  LOINC, agrega por `(município, biomarcador, competência)` e publica
+  os artefatos otimizados que o site lê (`parquet-opt/`,
+  `manifest/index.json`, `geo/brasil.pmtiles`).
+
+### _Gotcha_ inter-repo: novos anos no S3 não aparecem automaticamente no site
+
+Quando `datasus-parquet` publica um ano novo em
+`s3://…/sia-pa/ano=YYYY/`, o site **não enxerga sozinho** — o pipeline
+do `datasus-viz` precisa rodar de novo (`aggregate` em diante) para
+incorporar esses dados em `parquet-opt/` e `manifest/index.json`.
+
+Sintoma típico: anos faltando ou competências esparsas na _UI_, mesmo
+com os _Parquets brutos_ presentes em `s3://…/sia-pa/`. Diagnóstico:
+
+```bash
+# Anos no S3 bruto (datasus-parquet)
+aws s3 ls s3://precisa-saude-datasus-brasil/sia-pa/ | grep ano=
+
+# Anos no manifesto que o site lê
+curl -s https://dfdu08vi8wsus.cloudfront.net/manifest/index.json | jq '.years'
+```
+
+Se as listas divergirem, falta rodar o pipeline do `datasus-viz` (ver
+[Republicar artefatos do site](#republicar-artefatos-do-site)) para
+preencher o _gap_.
+
+### Quando rodar cada metade
+
+| Mudança                                               | Repo a rodar                      | _Trigger_ típico                                                        |
+| ----------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
+| Novo mês/ano de microdados publicado pelo DATASUS     | `datasus-parquet` → site          | _cron_ semanal `refresh.yml`; _backfill_ manual via `backfill.yml`      |
+| _Backfill_ histórico de anos antigos (e.g. 2009–2019) | `datasus-parquet` → site          | `backfill.yml` com `--years` específico, ou execução manual no _runner_ |
+| Mapeamento SIGTAP→LOINC mudou                         | `datasus-viz`                     | Republicação completa após `pnpm update @precisa-saude/datasus-sdk`     |
+| Geometrias municipais atualizadas                     | `datasus-viz` (`build:geo-tiles`) | _Refresh_ pontual, não acoplado aos dados                               |
+| _Schema_ do _Parquet bruto_ mudou                     | Ambos                             | Schema-evolution test em `datasus-parquet` antes; depois rerun no viz   |
+
+---
+
+Para a motivação arquitetural (por que consolidar, por que Parquet,
+por que PMTiles), ver [`architecture.md`](./architecture.md).
+
+## Fluxo do `datasus-viz` (este documento)
 
 ```
 aggregate-sia-parquet → consolidate-parquet → build-parquet-index
@@ -11,29 +84,34 @@ aggregate-sia-parquet → consolidate-parquet → build-parquet-index
                                             └→ upload-aws
 ```
 
-Para a motivação arquitetural (por que consolidar, por que Parquet,
-por que PMTiles), ver [`architecture.md`](./architecture.md).
-
 ---
 
 ## 1. `aggregate-sia-parquet.ts`
 
 **Comando:** `pnpm -F @datasus-viz/site aggregate`
 
-Baixa SIA-PA do FTP DATASUS por mês × UF, filtra para laboratório
-clínico (SIGTAP `02.02`), enriquece com LOINC via
-`@precisa-saude/datasus` e agrega por `(município, LOINC,
-competência)`, escrevendo Parquet em layout Hive.
+Lê os _Parquets brutos_ publicados por `datasus-parquet` via
+CloudFront (`https://dfdu08vi8wsus.cloudfront.net/sia-pa/ano=YYYY/uf=XX/mes=MM/part.parquet`),
+filtra para laboratório clínico (SIGTAP `02.02`), enriquece com LOINC
+via `@precisa-saude/datasus-sdk` e agrega por `(município, LOINC,
+competência)`, escrevendo Parquet em layout _Hive_.
+
+> **Não toca FTP DATASUS nem cache local de DBC.** Toda a leitura
+> acontece via HTTP _Range Requests_ contra os _Parquets brutos_ já
+> publicados. Se um (uf, ano, mês) não existe no S3, o `HEAD` falha
+> com 404 e o mês é pulado silenciosamente — exatamente o que
+> acontece com _split files_ MG/RJ/SP em janelas onde ainda não foram
+> processados.
 
 ### Argumentos
 
-| _Flag_            | Obrigatório | _Default_       | Descrição                                                                     |
-| ----------------- | ----------- | --------------- | ----------------------------------------------------------------------------- |
-| `--ufs`           | Não         | `AC`            | Lista de siglas separadas por vírgula (`AC,AL,SP`). `ALL` expande para as 27. |
-| `--years`         | Não         | `2024`          | Ano único (`2024`), lista (`2022,2024`) ou intervalo (`2008-2025`).           |
-| `--out`           | Não         | `build/parquet` | Diretório de saída.                                                           |
-| `--throttle-ms`   | Não         | `500`           | Pausa entre _requests_ FTP (cortesia para o servidor).                        |
-| `--year-pause-ms` | Não         | `5000`          | Pausa entre anos (permite _checkpoint_ e observação de _logs_).               |
+| _Flag_         | Obrigatório | _Default_                              | Descrição                                                                             |
+| -------------- | ----------- | -------------------------------------- | ------------------------------------------------------------------------------------- |
+| `--ufs`        | Não         | `ALL`                                  | Lista de siglas separadas por vírgula (`AC,AL,SP`). `ALL` expande para as 27.         |
+| `--years`      | Não         | `2008-{ano corrente}`                  | Ano único (`2024`), lista (`2022,2024`) ou intervalo (`2008-2025`).                   |
+| `--out`        | Não         | `build/parquet`                        | Diretório de saída.                                                                   |
+| `--source-url` | Não         | `https://dfdu08vi8wsus.cloudfront.net` | _Base URL_ dos _Parquets brutos_ (útil para apontar para um _mirror_).                |
+| `--force`      | Não         | `false`                                | Reagrega partições já presentes em `build/parquet/` (default pula partições prontas). |
 
 > **Importante:** o _flag_ antigo `--months` **não existe**. Usa
 > `--years`; o _script_ cobre todos os meses de cada ano automaticamente.
@@ -41,21 +119,26 @@ competência)`, escrevendo Parquet em layout Hive.
 ### Exemplos
 
 ```bash
-# Smoke (1 UF, 1 ano) — poucos MB, termina em minutos
-pnpm -F @datasus-viz/site aggregate --ufs AC --years 2024
+# Default: preencher o que falta em todas as UFs × 2008–ano corrente.
+# Idempotente — partições já agregadas são puladas, 404s do S3 ignorados.
+# Rodar depois que datasus-parquet publicou novos anos brutos no S3.
+pnpm -F @datasus-viz/site aggregate
 
-# Ano inteiro, todas as UFs — download pesado, horas
-pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2024
+# Reagregação completa (após bump de SDK ou mudança de mapeamento SIGTAP→LOINC)
+pnpm -F @datasus-viz/site aggregate -- --force
 
-# Série histórica
-pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2008-2025
+# Escopo restrito (smoke / debug)
+pnpm -F @datasus-viz/site aggregate -- --ufs AC --years 2024
 ```
 
-### Cache
+### _Cache_ e _CloudFront_
 
-O pacote `@precisa-saude/datasus` mantém _cache_ FTP local em
-`~/.cache/datasus-brasil`. Reexecuções com os mesmos (UF × mês) não
-refazem _download_.
+DuckDB usa `httpfs` com _Range Requests_, então CloudFront serve os
+_footers_ direto e a quantidade de bytes baixada por _query_ é uma
+fração do _Parquet_ inteiro. Reexecuções com os mesmos `(UF, ano,
+mês)` re-leem da rede (sem _cache_ local), mas o CloudFront amortiza
+o custo no _origin_. Para ambientes _offline_, aponte `--source-url`
+para um _mirror_ HTTP local.
 
 ### Saída
 
@@ -264,26 +347,94 @@ aws cloudfront create-invalidation \
 
 ---
 
-## _Workflow_ completo
+## Republicar artefatos do site
 
-Republicar dados do zero:
+### Automático: workflow `refresh.yml`
+
+Cron semanal (segunda 08:00 UTC) em
+[`.github/workflows/refresh.yml`](../../.github/workflows/refresh.yml)
+roda `aggregate → consolidate → build-parquet-index → upload-aws →
+invalidação` no _runner_ GitHub. Idempotente: se nenhum ano/competência
+novo apareceu desde o último run, _step_ de upload e invalidação é
+pulado (compara o manifesto local com o que está em S3, ignorando o
+campo `geradoEm` que muda toda execução).
+
+Disparo manual (`workflow_dispatch`) também disponível, com flag
+`forceReaggregate` para reagregar tudo (após bump de SDK / mudança
+de mapeamento SIGTAP→LOINC).
+
+_Secrets_ necessários: `AWS_ROLE_ARN` (OIDC), `S3_BUCKET`,
+`CLOUDFRONT_DISTRIBUTION_ID`.
+
+### Manual: localmente
+
+Após `datasus-parquet` publicar novos `(ano, UF)` em `s3://…/sia-pa/`,
+o pipeline manual completo é:
 
 ```bash
-# 1. Agregar microdados
-pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2024
+# 1. Agregar — default já cobre todas UFs × 2008–ano corrente,
+#    pulando partições já agregadas e ignorando 404s do S3.
+pnpm -F @datasus-viz/site aggregate
 
-# 2. Consolidar
+# 2. Consolidar build/parquet/ → build/parquet-opt/
 pnpm -F @datasus-viz/site build:consolidate
 
-# 3. Gerar manifesto
+# 3. Manifesto com years/competencias/UFs/biomarkers
 pnpm -F @datasus-viz/site build:parquet-index
 
-# 4. Gerar tiles (pula se geometria não mudou)
+# 4. Tiles geográficos (pula se geometria não mudou)
 pnpm -F @datasus-viz/site build:geo-tiles
 
-# 5. Publicar
+# 5. Publicar parquet-opt/, manifest/index.json, geo/brasil.pmtiles
 pnpm -F @datasus-viz/site upload:aws
+
+# 6. Invalidar CloudFront — parquet-opt usa max-age=31536000 immutable,
+#    sem invalidação o site continua servindo a versão antiga
+aws cloudfront create-invalidation \
+  --distribution-id <DIST_ID> \
+  --paths '/parquet-opt/*' '/manifest/index.json'
 ```
+
+> **Forçar reagregação de um ano específico:** apagar
+> `build/parquet/ano=YYYY` antes do `aggregate`, ou usar
+> `pnpm aggregate -- --force --years YYYY` para sobrescrever.
+
+### _Backfill_ manual (vindo de _build_ local de `datasus-parquet`)
+
+Quando os _Parquets brutos_ foram gerados localmente (e.g. _backfill_
+histórico no _runner_) mas não foram publicados via CI, o atalho é
+`aws s3 sync` direto do _build_ local antes de rodar a sequência
+acima:
+
+```bash
+# Em datasus-parquet (no host onde os Parquets foram gerados):
+cd ~/Github/precisa-saude/datasus-parquet[-ftp|-transform]
+pnpm emit-provenance     # gera build/sia-pa/provenance/
+
+# Sincroniza brutos + provenance (--size-only pula bytes idênticos):
+for y in 2009 2010 2011 2012 2013 2014; do
+  aws s3 sync build/sia-pa/ano=$y \
+    s3://precisa-saude-datasus-brasil/sia-pa/ano=$y \
+    --size-only \
+    --exclude '*.ndjson' --exclude '*.skipped' \
+    --cache-control 'public, max-age=3600'
+  aws s3 sync build/sia-pa/provenance/ano=$y \
+    s3://precisa-saude-datasus-brasil/sia-pa/provenance/ano=$y \
+    --size-only \
+    --cache-control 'public, max-age=3600'
+done
+```
+
+Depois rodar a sequência `aggregate → consolidate → build-parquet-index
+→ upload-aws → invalidação` em `datasus-viz` para que o site enxergue
+os anos novos.
+
+> **Onde fica o `DIST_ID`:** GH _secret_
+> `CLOUDFRONT_DISTRIBUTION_ID` (consumido por
+> `datasus-parquet/.github/workflows/backfill.yml` e `refresh.yml`).
+> Para invalidação manual, _users_ AWS com a permissão
+> `cloudfront:CreateInvalidation` no recurso da distribuição
+> conseguem rodar o `create-invalidation` direto.
 
 ## _Vintage_ e _schema_ do SIA
 

@@ -1,0 +1,121 @@
+name: refresh
+
+# Republica os artefatos do site (parquet-opt + manifest) sempre que
+# datasus-parquet publicou raw novo no S3 — agrega o que falta, gera
+# manifesto, sobe e invalida CloudFront.
+#
+# Cadência: segunda-feira 08:00 UTC (1h após o cron de refresh do
+# datasus-parquet, dando margem para o S3 sync terminar).
+# Idempotente: pnpm aggregate pula partições já agregadas.
+#
+# Secrets necessários (configurar via Settings → Secrets → Actions):
+#   AWS_ROLE_ARN                — IAM role com S3 (read+write em sia-pa/,
+#                                 parquet-opt/, manifest/, geo/) e CloudFront
+#                                 (CreateInvalidation no distribution alvo)
+#   S3_BUCKET                   — nome do bucket S3 (sa-east-1)
+#   CLOUDFRONT_DISTRIBUTION_ID  — opcional; sem ele, cache só expira via TTL
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      forceReaggregate:
+        description: 'Força reagregação (ignora cache local) — útil após bump de SDK'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write # OIDC para assumir AWS_ROLE_ARN
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      AWS_REGION: sa-east-1
+      BUCKET: ${{ secrets.S3_BUCKET }}
+      DIST_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Aggregate (idempotente — pula partições já agregadas)
+        run: |
+          if [ "${{ inputs.forceReaggregate }}" = "true" ]; then
+            pnpm -F @datasus-viz/site aggregate -- --force
+          else
+            pnpm -F @datasus-viz/site aggregate
+          fi
+
+      - name: Consolidate
+        run: pnpm -F @datasus-viz/site build:consolidate
+
+      - name: Build manifest
+        run: pnpm -F @datasus-viz/site build:parquet-index
+
+      - name: Detecta diff vs S3 atual
+        id: diff
+        run: |
+          # Compara o manifest novo com o que está em S3. Se idêntico, não
+          # republica — economiza CloudFront invalidation e bytes de S3.
+          REMOTE=$(aws s3 cp "s3://$BUCKET/manifest/index.json" - 2>/dev/null || echo '{}')
+          LOCAL=$(cat site/build/manifest/index.json)
+          # Compara só os campos que importam (ignora geradoEm que muda toda execução).
+          REMOTE_KEY=$(echo "$REMOTE" | jq -c '{years, availableUFs, competencias, biomarkers}' 2>/dev/null || echo '{}')
+          LOCAL_KEY=$(echo "$LOCAL" | jq -c '{years, availableUFs, competencias, biomarkers}')
+          if [ "$REMOTE_KEY" = "$LOCAL_KEY" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Sem mudanças no manifesto — pulando upload + invalidation."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Manifesto mudou — republicando."
+          fi
+
+      - name: Upload (parquet-opt + manifest + geo)
+        if: steps.diff.outputs.changed == 'true'
+        run: pnpm -F @datasus-viz/site upload:aws
+
+      - name: Invalidate CloudFront
+        if: steps.diff.outputs.changed == 'true' && env.DIST_ID != ''
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "$DIST_ID" \
+            --paths '/parquet-opt/*' '/manifest/index.json'
+
+      - name: Resumo
+        if: always()
+        run: |
+          echo "## Refresh — $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f site/build/manifest/index.json ]; then
+            YEARS=$(jq -r '.years | join(", ")' site/build/manifest/index.json)
+            COMPS=$(jq -r '.competencias | length' site/build/manifest/index.json)
+            UFS=$(jq -r '.availableUFs | length' site/build/manifest/index.json)
+            echo "- Anos: $YEARS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Competências: $COMPS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- UFs cobertas: $UFS / 27" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Mudou desde último run: \`${{ steps.diff.outputs.changed }}\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Manifesto não gerado." >> "$GITHUB_STEP_SUMMARY"
+          fi

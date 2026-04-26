@@ -35,6 +35,7 @@ import duckdb from 'duckdb';
 const DEFAULT_SOURCE_URL = 'https://dfdu08vi8wsus.cloudfront.net';
 
 interface Cli {
+  force: boolean;
   outDir: string;
   sourceUrl: string;
   ufs: string[];
@@ -82,9 +83,13 @@ function parseArgs(argv: string[]): Cli {
     return value;
   };
 
-  const rawUfs = get('--ufs', 'AC').toUpperCase();
+  // Default cobre o universo do dataset SIA-PA hoje publicado: todas as
+  // UFs × 2008–ano corrente. O loop interno pula partições já agregadas
+  // (idempotência via existsSync no Parquet de saída) e ignora 404s do
+  // S3 — então `pnpm aggregate` sem flags vira "preencha o que falta".
+  const rawUfs = get('--ufs', 'ALL').toUpperCase();
   const ufs = (rawUfs === 'ALL' ? ALL_UFS : rawUfs.split(',').map((s) => s.trim())).sort();
-  const yearsArg = get('--years', '2024');
+  const yearsArg = get('--years', `2008-${new Date().getFullYear()}`);
   const years: number[] = [];
   for (const chunk of yearsArg.split(',')) {
     const [a, b] = chunk.split('-').map((s) => Number(s.trim()));
@@ -97,6 +102,7 @@ function parseArgs(argv: string[]): Cli {
   years.sort((x, y) => x - y);
   const siteRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
   return {
+    force: argv.includes('--force'),
     outDir: resolve(siteRoot, get('--out', 'build/parquet')),
     sourceUrl: get('--source-url', DEFAULT_SOURCE_URL).replace(/\/+$/, ''),
     ufs,
@@ -236,7 +242,7 @@ async function processMonth(
 ): Promise<{ emitted: number; status: '404' | 'done' | 'skipped' }> {
   const mesStr = String(month).padStart(2, '0');
   const outFile = resolve(cli.outDir, `ano=${year}/uf=${uf}/mes=${mesStr}/part.parquet`);
-  if (existsSync(outFile)) {
+  if (existsSync(outFile) && !cli.force) {
     return { emitted: 0, status: 'skipped' };
   }
 
