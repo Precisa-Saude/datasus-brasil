@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import type { SelectedMunicipio } from '@/components/BrasilMap';
 import { BrasilMap } from '@/components/BrasilMap';
@@ -33,14 +34,30 @@ function formatGeradoEm(iso: string): string {
 }
 
 export default function Home() {
+  // URL é a fonte da verdade do drill-down. `/` = Brasil,
+  // `/uf/:ufSigla` = UF, `/uf/:ufSigla/mun/:codigo` = município.
+  // Competência fica em ?competencia= para ser preservada entre níveis
+  // sem inflar o histórico do browser.
+  const params = useParams<{ codigo?: string; ufSigla?: string }>();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ufSiglaParam = params.ufSigla?.toUpperCase() ?? null;
+  const codigoParam = params.codigo ?? null;
+
   const [manifest, setManifest] = useState<AggregateIndex | null>(null);
   const [ufData, setUfData] = useState<UfAggregate[] | null>(null);
   const [municipioData, setMunicipioData] = useState<MunicipioAggregate[] | null>(null);
-  const [selectedMun, setSelectedMun] = useState<null | SelectedMunicipio>(null);
-  const [selectedUf, setSelectedUf] = useState<null | string>(null);
-  const [competencia, setCompetencia] = useState<null | string>(null);
   const [error, setError] = useState<null | string>(null);
   const [refitUfSignal, setRefitUfSignal] = useState(0);
+
+  const competenciaParam = searchParams.get('competencia');
+  const competencia = useMemo<null | string>(() => {
+    if (!manifest) return null;
+    if (competenciaParam && manifest.competencias.includes(competenciaParam)) {
+      return competenciaParam;
+    }
+    return manifest.competencias[manifest.competencias.length - 1] ?? null;
+  }, [manifest, competenciaParam]);
 
   // Offset = altura do header (h-16 = 4rem) + respiro de 1.5rem.
   const PANEL_TOP = 'calc(4rem + 1.5rem)';
@@ -64,13 +81,20 @@ export default function Home() {
 
   useEffect(() => {
     loadManifest().then(
-      (m) => {
-        setManifest(m);
-        setCompetencia(m.competencias[m.competencias.length - 1] ?? null);
-      },
+      (m) => setManifest(m),
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
   }, []);
+
+  // UF inválida na URL → volta pra Brasil (replace, sem poluir histórico).
+  useEffect(() => {
+    if (!manifest || !ufSiglaParam) return;
+    if (!manifest.availableUFs.includes(ufSiglaParam)) {
+      navigate({ pathname: '/', search: searchParams.toString() }, { replace: true });
+    }
+  }, [manifest, ufSiglaParam, navigate, searchParams]);
+
+  const selectedUf = ufSiglaParam;
 
   useEffect(() => {
     if (!competencia) return;
@@ -80,43 +104,87 @@ export default function Home() {
     );
   }, [competencia]);
 
-  const handleUfClick = useCallback(
-    (ufSigla: string) => {
-      if (!competencia) return;
-      setSelectedUf(ufSigla);
-      setMunicipioData(null);
-      fetchMunicipioAggregates(ufSigla, competencia).then(
-        (rows) => setMunicipioData(rows),
-        (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
-      );
-    },
-    [competencia],
-  );
-
   useEffect(() => {
-    if (!selectedUf || !competencia) return;
+    if (!selectedUf || !competencia) {
+      setMunicipioData(null);
+      return;
+    }
     fetchMunicipioAggregates(selectedUf, competencia).then(
       (rows) => setMunicipioData(rows),
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
   }, [selectedUf, competencia]);
 
-  const handleBackToBrazil = useCallback(() => {
-    setSelectedUf(null);
-    setMunicipioData(null);
-    setSelectedMun(null);
-  }, []);
+  // selectedMun é derivado do path + municipioData (precisa do nome
+  // pra exibir no painel). Enquanto os dados não chegam, usa o código
+  // como nome de fallback.
+  const selectedMun = useMemo<null | SelectedMunicipio>(() => {
+    if (!selectedUf || !codigoParam) return null;
+    const key6 = codigoParam.slice(0, 6);
+    const match = municipioData?.find((r) => r.municipioCode.slice(0, 6) === key6);
+    return {
+      codigo: codigoParam,
+      nome: match?.municipioNome ?? codigoParam,
+      ufSigla: selectedUf,
+    };
+  }, [selectedUf, codigoParam, municipioData]);
 
-  const handleMunicipioClick = useCallback((m: SelectedMunicipio) => {
-    setSelectedMun(m);
-  }, []);
+  // Município inválido na URL (não existe na UF) → volta pra UF.
+  useEffect(() => {
+    if (!selectedUf || !codigoParam || !municipioData) return;
+    const key6 = codigoParam.slice(0, 6);
+    const exists = municipioData.some((r) => r.municipioCode.slice(0, 6) === key6);
+    if (!exists) {
+      navigate(
+        { pathname: `/uf/${selectedUf}`, search: searchParams.toString() },
+        { replace: true },
+      );
+    }
+  }, [selectedUf, codigoParam, municipioData, navigate, searchParams]);
+
+  const search = searchParams.toString();
+  const searchSuffix = search ? `?${search}` : '';
+
+  const handleUfClick = useCallback(
+    (ufSigla: string) => {
+      navigate(`/uf/${ufSigla}${searchSuffix}`);
+    },
+    [navigate, searchSuffix],
+  );
+
+  // Zoom-out via wheel/pinch dispara reset automático: usa replace pra
+  // não encher o histórico com voltas espelhadas do drill-in.
+  const handleBackToBrazil = useCallback(() => {
+    navigate(`/${searchSuffix}`, { replace: true });
+  }, [navigate, searchSuffix]);
+
+  const handleMunicipioClick = useCallback(
+    (m: SelectedMunicipio) => {
+      navigate(`/uf/${m.ufSigla}/mun/${m.codigo}${searchSuffix}`);
+    },
+    [navigate, searchSuffix],
+  );
 
   const handleCloseCity = useCallback(() => {
-    setSelectedMun(null);
+    if (!selectedUf) return;
+    navigate(`/uf/${selectedUf}${searchSuffix}`);
     setRefitUfSignal((n) => n + 1);
-  }, []);
+  }, [navigate, searchSuffix, selectedUf]);
 
-  // Agregados prontos pras tabelas (soma de todos os biomarcadores).
+  const handleCompetenciaChange = useCallback(
+    (v: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('competencia', v);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const ufRows = useMemo<OverviewRow[]>(() => {
     if (!ufData || !competencia) return [];
     const byUf = new Map<string, { valor: number; volume: number }>();
@@ -171,15 +239,14 @@ export default function Home() {
   const handleMuniRowClick = useCallback(
     (row: OverviewRow) => {
       if (!selectedUf) return;
-      setSelectedMun({ codigo: row.key, nome: row.primary, ufSigla: selectedUf });
+      navigate(`/uf/${selectedUf}/mun/${row.key}${searchSuffix}`);
     },
-    [selectedUf],
+    [navigate, searchSuffix, selectedUf],
   );
 
   const tablePanel = ((): React.ReactNode => {
     if (!manifest || !competencia) return null;
     const subtitle = `SIA-SUS ${formatCompetencia(competencia)}`;
-    // Nível 3: município selecionado → detalhe por exame.
     if (selectedUf && selectedMun && municipioData) {
       return (
         <MunicipioDetail
@@ -191,7 +258,6 @@ export default function Home() {
         />
       );
     }
-    // Nível 2: UF selecionada → lista de municípios.
     if (selectedUf) {
       return (
         <OverviewTable
@@ -213,7 +279,6 @@ export default function Home() {
         />
       );
     }
-    // Nível 1: país → lista de UFs.
     return (
       <OverviewTable
         emptyMessage="Sem dados para a competência selecionada."
@@ -283,7 +348,7 @@ export default function Home() {
         <div className="border-border bg-card/95 pointer-events-auto absolute bottom-10 left-1/2 z-10 w-[min(640px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border p-4 shadow-lg backdrop-blur-md">
           <CompetenciaSlider
             competencias={manifest.competencias}
-            onChange={setCompetencia}
+            onChange={handleCompetenciaChange}
             value={competencia}
           />
         </div>
