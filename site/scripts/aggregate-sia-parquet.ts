@@ -273,13 +273,23 @@ async function main(): Promise<void> {
       `anos=${cli.years.join(',')} | source=${cli.sourceUrl}\n`,
   );
 
+  // allSettled em vez de Promise.all: se um mês falhar, os outros 11
+  // ainda escrevem suas partições. Erros viram marker 'e' na saída
+  // pra não passar batido. Idempotência cuida do retry no próximo run.
   for (const year of cli.years) {
     for (const uf of cli.ufs) {
       const months = Array.from({ length: 12 }, (_, i) => i + 1);
-      const results = await Promise.all(months.map((m) => processMonth(cli, uf, year, m)));
-      const markers = results.map((r, i) => {
+      const settled = await Promise.allSettled(months.map((m) => processMonth(cli, uf, year, m)));
+      const markers = settled.map((s, i) => {
         const m = i + 1;
-        const sym = r.status === 'done' ? '·' : r.status === 'skipped' ? '=' : 'x';
+        if (s.status === 'rejected') {
+          process.stderr.write(
+            `\n  ✗ ${uf} ${year}-${String(m).padStart(2, '0')}: ` +
+              `${(s.reason as Error).message}\n`,
+          );
+          return `${m}e`;
+        }
+        const sym = s.value.status === 'done' ? '·' : s.value.status === 'skipped' ? '=' : 'x';
         return `${m}${sym}`;
       });
       process.stderr.write(`[${year}] ${uf}: ${markers.join('')}\n`);
