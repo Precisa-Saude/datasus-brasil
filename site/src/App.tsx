@@ -9,9 +9,10 @@ import Sobre from './pages/Sobre';
 import Tendencias from './pages/Tendencias';
 
 export default function App() {
-  // O mapa ocupa a tela inteira em /, então o footer só faz sentido nas
-  // páginas de conteúdo (ex.: /sobre).
-  const isMapRoute = useLocation().pathname === '/';
+  // O mapa ocupa a tela inteira em / (e nos drill-downs /uf/...), então
+  // o footer só faz sentido nas páginas de conteúdo (ex.: /sobre).
+  const { pathname } = useLocation();
+  const isMapRoute = pathname === '/' || pathname.startsWith('/uf/');
   return (
     <div className="flex min-h-screen flex-col">
       <Nav />
@@ -20,6 +21,8 @@ export default function App() {
         <ErrorBoundary>
           <Routes>
             <Route element={<Home />} path="/" />
+            <Route element={<Home />} path="/uf/:ufSigla" />
+            <Route element={<Home />} path="/uf/:ufSigla/mun/:codigo" />
             <Route element={<Tendencias />} path="/tendencias" />
             <Route element={<Sobre />} path="/sobre" />
           </Routes>
