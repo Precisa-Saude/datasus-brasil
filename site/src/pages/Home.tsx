@@ -347,7 +347,7 @@ export default function Home() {
       ) : null}
 
       {manifest && competenciaRange !== null ? (
-        <div className="border-border bg-card/95 pointer-events-auto absolute bottom-10 left-1/2 z-10 w-[min(960px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border p-4 shadow-lg backdrop-blur-md">
+        <div className="border-border bg-card/95 pointer-events-auto absolute bottom-6 left-1/2 z-10 w-[min(960px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border px-4 pt-2 pb-3 shadow-lg backdrop-blur-md">
           <CompetenciaBrush
             competencias={manifest.competencias}
             onChange={handleRangeChange}

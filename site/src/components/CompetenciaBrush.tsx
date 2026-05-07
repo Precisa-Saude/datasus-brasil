@@ -29,15 +29,87 @@ interface DragState {
   startIdx: number;
 }
 
-const HISTOGRAM_HEIGHT = 72;
-const HANDLE_WIDTH = 8;
-const HANDLE_OVERFLOW = 4;
+const HISTOGRAM_HEIGHT = 56;
+const HANDLE_HIT_WIDTH = 14;
+const HANDLE_PILL_WIDTH = 8;
+const HANDLE_PILL_HEIGHT = 22;
 const YEAR_LABEL_MIN_PX = 28;
 
 interface YearTick {
   idx: number;
   label: string;
   x: number;
+}
+
+interface BrushHandleProps {
+  ariaLabel: string;
+  ariaValueMax: number;
+  ariaValueMin: number;
+  ariaValueNow: number;
+  ariaValueText: string;
+  centerX: number;
+  histogramHeight: number;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  onPointerDown: (e: React.PointerEvent) => void;
+}
+
+/**
+ * Marcador estilo Falcon: pill arredondado vertical centralizado no
+ * histograma com 3 linhas de "grip" no meio. A área de hit (rect
+ * transparente) é mais larga que o pill visível pra que pegar o
+ * marcador seja fácil mesmo com o pill estreito.
+ */
+function BrushHandle(props: BrushHandleProps) {
+  const pillX = props.centerX - HANDLE_PILL_WIDTH / 2;
+  const pillY = (props.histogramHeight - HANDLE_PILL_HEIGHT) / 2;
+  const gripCenterY = props.histogramHeight / 2;
+  return (
+    <g style={{ cursor: 'ew-resize' }}>
+      {/* Hit area — transparente e mais larga que o pill */}
+      <rect
+        aria-label={props.ariaLabel}
+        aria-valuemax={props.ariaValueMax}
+        aria-valuemin={props.ariaValueMin}
+        aria-valuenow={props.ariaValueNow}
+        aria-valuetext={props.ariaValueText}
+        fill="transparent"
+        height={props.histogramHeight}
+        onKeyDown={props.onKeyDown}
+        onPointerDown={props.onPointerDown}
+        role="slider"
+        style={{ outline: 'none' }}
+        tabIndex={0}
+        width={HANDLE_HIT_WIDTH}
+        x={props.centerX - HANDLE_HIT_WIDTH / 2}
+        y={0}
+      />
+      {/* Pill visível */}
+      <rect
+        fill="var(--primary)"
+        height={HANDLE_PILL_HEIGHT}
+        pointerEvents="none"
+        rx={HANDLE_PILL_WIDTH / 2}
+        ry={HANDLE_PILL_WIDTH / 2}
+        width={HANDLE_PILL_WIDTH}
+        x={pillX}
+        y={pillY}
+      />
+      {/* Grip lines — três linhas brancas curtas no centro do pill */}
+      {[-4, 0, 4].map((dy) => (
+        <line
+          key={dy}
+          pointerEvents="none"
+          stroke="var(--background)"
+          strokeLinecap="round"
+          strokeWidth={1.25}
+          x1={props.centerX - 2}
+          x2={props.centerX + 2}
+          y1={gripCenterY + dy}
+          y2={gripCenterY + dy}
+        />
+      ))}
+    </g>
+  );
 }
 
 function computeYearTicks(months: string[], idxToX: (idx: number) => number): YearTick[] {
@@ -124,12 +196,30 @@ export function CompetenciaBrush({
   );
 
   const commit = useCallback(() => {
-    const draft = draftRange;
-    setDraftRange(null);
-    if (!draft) return;
-    if (draft.from === value.from && draft.to === value.to) return;
-    onChange(draft);
+    if (!draftRange) return;
+    if (draftRange.from === value.from && draftRange.to === value.to) {
+      // Drag terminou no mesmo ponto onde começou — nada a propagar.
+      setDraftRange(null);
+      return;
+    }
+    // NÃO limpa o draft aqui: o parent vai propagar `value` novo via
+    // URL, mas isso leva 1-2 ticks. Se zerássemos `draftRange`, o
+    // `effectiveValue` voltaria pro `value` antigo até o prop chegar
+    // — flicker visível ("a janela snap back" antes de pousar). O
+    // efeito abaixo zera o draft assim que o prop encosta no draft.
+    onChange(draftRange);
   }, [draftRange, value.from, value.to, onChange]);
+
+  useEffect(() => {
+    if (
+      draftRange &&
+      draftRange.from === value.from &&
+      draftRange.to === value.to &&
+      dragRef.current === null
+    ) {
+      setDraftRange(null);
+    }
+  }, [value.from, value.to, draftRange]);
 
   // Refs pra que listeners no `window` enxerguem sempre os callbacks
   // mais recentes sem precisar reanexar. Reanexar a cada drag move
@@ -288,49 +378,27 @@ export function CompetenciaBrush({
             y={histogramTop}
           />
 
-          {/* Handle esquerdo — barra vertical do tamanho do histograma */}
-          <rect
-            aria-label="Início da faixa"
-            aria-valuemax={toIdx - MIN_SPAN}
-            aria-valuemin={0}
-            aria-valuenow={fromIdx}
-            aria-valuetext={formatCompetencia(effectiveValue.from)}
-            fill="var(--background)"
-            height={HISTOGRAM_HEIGHT + HANDLE_OVERFLOW * 2}
+          <BrushHandle
+            ariaLabel="Início da faixa"
+            ariaValueMax={toIdx - MIN_SPAN}
+            ariaValueMin={0}
+            ariaValueNow={fromIdx}
+            ariaValueText={formatCompetencia(effectiveValue.from)}
+            centerX={startX}
+            histogramHeight={HISTOGRAM_HEIGHT}
             onKeyDown={(e) => handleKey('start', e)}
             onPointerDown={(e) => startDrag('start', e)}
-            role="slider"
-            rx={2}
-            ry={2}
-            stroke="var(--primary)"
-            strokeWidth={2}
-            style={{ cursor: 'ew-resize', outline: 'none' }}
-            tabIndex={0}
-            width={HANDLE_WIDTH}
-            x={startX - HANDLE_WIDTH / 2}
-            y={histogramTop - HANDLE_OVERFLOW}
           />
-          {/* Handle direito */}
-          <rect
-            aria-label="Fim da faixa"
-            aria-valuemax={maxIdx}
-            aria-valuemin={fromIdx + MIN_SPAN}
-            aria-valuenow={toIdx}
-            aria-valuetext={formatCompetencia(effectiveValue.to)}
-            fill="var(--background)"
-            height={HISTOGRAM_HEIGHT + HANDLE_OVERFLOW * 2}
+          <BrushHandle
+            ariaLabel="Fim da faixa"
+            ariaValueMax={maxIdx}
+            ariaValueMin={fromIdx + MIN_SPAN}
+            ariaValueNow={toIdx}
+            ariaValueText={formatCompetencia(effectiveValue.to)}
+            centerX={endX}
+            histogramHeight={HISTOGRAM_HEIGHT}
             onKeyDown={(e) => handleKey('end', e)}
             onPointerDown={(e) => startDrag('end', e)}
-            role="slider"
-            rx={2}
-            ry={2}
-            stroke="var(--primary)"
-            strokeWidth={2}
-            style={{ cursor: 'ew-resize', outline: 'none' }}
-            tabIndex={0}
-            width={HANDLE_WIDTH}
-            x={endX - HANDLE_WIDTH / 2}
-            y={histogramTop - HANDLE_OVERFLOW}
           />
         </svg>
 
