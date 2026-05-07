@@ -65,7 +65,7 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       id: sigla,
       source: SOURCE_ID,
       sourceLayer: UF_LAYER,
-    }) as { volume?: number } | null;
+    }) as { rank?: number; rankTotal?: number; volume?: number } | null;
     const hasData = latest.availableUFs.includes(sigla);
     map.getCanvas().style.cursor = hasData ? 'pointer' : 'default';
     popup
@@ -73,6 +73,8 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       .setHTML(
         buildOverviewTooltipHtml({
           name: String(feature.properties?.name ?? sigla),
+          rank: state?.rank,
+          rankTotal: state?.rankTotal,
           subtitle: `${sigla}${hasData ? ' — clique para detalhar' : ' — sem dados'}`,
           totalLabel: 'exames laboratoriais',
           totalValue: Number(state?.volume ?? 0),
@@ -112,7 +114,12 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       id: featId,
       source: SOURCE_ID,
       sourceLayer: MUN_LAYER,
-    }) as { municipio?: string; volume?: number } | null;
+    }) as {
+      municipio?: string;
+      rank?: number;
+      rankTotal?: number;
+      volume?: number;
+    } | null;
     const name = state?.municipio ?? String(feature.properties?.nome ?? `código ${codareaStr}`);
     const hasData = Number(state?.volume ?? 0) > 0;
     map.getCanvas().style.cursor = hasData ? 'pointer' : 'default';
@@ -121,6 +128,8 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       .setHTML(
         buildOverviewTooltipHtml({
           name: `${name} — ${featureUf}`,
+          rank: state?.rank,
+          rankTotal: state?.rankTotal,
           subtitle: hasData
             ? 'Clique para ver todos os exames'
             : 'Sem exames faturados nesta competência',

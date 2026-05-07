@@ -53,4 +53,26 @@ describe('buildOverviewTooltipHtml', () => {
     });
     expect(html).toContain('1.000');
   });
+
+  it('inclui rank/total quando ambos presentes', () => {
+    const html = buildOverviewTooltipHtml({
+      name: 'SP',
+      rank: 1,
+      rankTotal: 27,
+      subtitle: '—',
+      totalLabel: 'exames',
+      totalValue: 100,
+    });
+    expect(html).toContain('Rank 1/27');
+  });
+
+  it('omite linha de rank quando rank ausente', () => {
+    const html = buildOverviewTooltipHtml({
+      name: 'SP',
+      subtitle: '—',
+      totalLabel: 'exames',
+      totalValue: 100,
+    });
+    expect(html).not.toContain('Rank');
+  });
 });
