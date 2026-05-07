@@ -55,9 +55,11 @@ export default function Home() {
   const [error, setError] = useState<null | string>(null);
   const [refitUfSignal, setRefitUfSignal] = useState(0);
 
-  const { range: competenciaRange, setRange: commitRange } = useCompetenciaRange(
-    manifest?.competencias,
-  );
+  const {
+    range: competenciaRange,
+    resetRange,
+    setRange: commitRange,
+  } = useCompetenciaRange(manifest?.competencias);
 
   // `previewRange` reflete o brush em tempo real (durante o drag e
   // entre committed). Aliments lookups no cubo — quando o usuário
@@ -348,6 +350,7 @@ export default function Home() {
             competencias={manifest.competencias}
             onCommit={commitRange}
             onPreview={setPreviewRange}
+            onReset={resetRange}
             value={competenciaRange}
             volumeByCompetencia={volumeByCompetencia}
           />

@@ -20,7 +20,7 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={vi.fn()} onPreview={vi.fn()}
+        onCommit={vi.fn()} onPreview={vi.fn()} onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-12' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -33,7 +33,7 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={vi.fn()} onPreview={vi.fn()}
+        onCommit={vi.fn()} onPreview={vi.fn()} onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-12' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -46,7 +46,7 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={vi.fn()} onPreview={vi.fn()}
+        onCommit={vi.fn()} onPreview={vi.fn()} onReset={vi.fn()}
         value={{ from: '2023-06', to: '2024-06' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -64,7 +64,7 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={onChange} onPreview={vi.fn()}
+        onCommit={onChange} onPreview={vi.fn()} onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-01' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -79,7 +79,7 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={onChange} onPreview={vi.fn()}
+        onCommit={onChange} onPreview={vi.fn()} onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-06' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -88,5 +88,25 @@ describe('CompetenciaBrush', () => {
     // Shift+→ tenta avançar 12 meses; deve clampar em to - 1 = '2024-01'
     fireEvent.keyDown(start, { key: 'ArrowRight', shiftKey: true });
     expect(onChange).toHaveBeenCalledWith({ from: '2024-01', to: '2024-06' });
+  });
+
+  it('double-click no backdrop dispara onReset', () => {
+    const onReset = vi.fn();
+    const { container } = render(
+      <CompetenciaBrush
+        competencias={COMPETENCIAS}
+        onCommit={vi.fn()}
+        onPreview={vi.fn()}
+        onReset={onReset}
+        value={{ from: '2023-06', to: '2024-06' }}
+        volumeByCompetencia={makeVolume()}
+      />,
+    );
+    // O backdrop é o primeiro <rect> do <svg> (pintura por trás de
+    // tudo, com onDoubleClick).
+    const backdrop = container.querySelector('svg > rect');
+    expect(backdrop).not.toBeNull();
+    fireEvent.doubleClick(backdrop!);
+    expect(onReset).toHaveBeenCalledTimes(1);
   });
 });

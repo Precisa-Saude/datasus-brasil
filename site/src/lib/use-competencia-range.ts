@@ -21,6 +21,7 @@ const DEFAULT_WINDOW_MONTHS = 12;
  */
 export interface CompetenciaRangeApi {
   range: CompetenciaRange | null;
+  resetRange: () => void;
   setRange: (next: CompetenciaRange) => void;
 }
 
@@ -88,5 +89,18 @@ export function useCompetenciaRange(competencias: string[] | undefined): Compete
     [setSearchParams],
   );
 
-  return { range, setRange };
+  const resetRange = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const np = new URLSearchParams(prev);
+        np.delete('competencia');
+        np.delete('from');
+        np.delete('to');
+        return np;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
+  return { range, resetRange, setRange };
 }

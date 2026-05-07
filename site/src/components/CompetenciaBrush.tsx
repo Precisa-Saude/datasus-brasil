@@ -19,6 +19,11 @@ export interface CompetenciaBrushProps {
    * real (cf. Falcon, `src/app.ts:868-950`). Não atualiza URL.
    */
   onPreview: (range: CompetenciaRange) => void;
+  /**
+   * Double-click fora da janela do brush (mas dentro do histograma)
+   * pede um reset do range pro default da página.
+   */
+  onReset: () => void;
 }
 
 /**
@@ -140,6 +145,7 @@ export function CompetenciaBrush({
   competencias,
   onCommit,
   onPreview,
+  onReset,
   value,
   volumeByCompetencia,
 }: CompetenciaBrushProps) {
@@ -348,6 +354,19 @@ export function CompetenciaBrush({
           style={{ touchAction: 'none' }}
           width={width}
         >
+          {/* Backdrop transparente: capta double-click fora da janela
+              do brush e dispara reset pro default. As barras logo
+              acima usam `pointerEvents="none"`, então cliques sobre
+              elas chegam aqui; a janela do brush e os handles ficam
+              em camadas superiores e capturam os próprios eventos. */}
+          <rect
+            fill="transparent"
+            height={HISTOGRAM_HEIGHT}
+            onDoubleClick={onReset}
+            width={barAreaWidth}
+            x={0}
+            y={histogramTop}
+          />
           {/* Histograma: barras dentro da janela em primary, fora em
               muted. A janela do brush é a sobreposição translúcida em
               cima dessa camada. */}
