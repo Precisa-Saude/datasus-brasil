@@ -25,6 +25,18 @@ export interface MunicipioAggregate {
   volumeExames: number;
 }
 
+/**
+ * Faixa fechada de competências `YYYY-MM`. `from` e `to` são strings
+ * comparáveis lexicograficamente (formato `YYYY-MM`), o que dispensa
+ * conversão para Date no filtro `r.competencia >= from && <= to`.
+ *
+ * Restrição de UI: `to > from` (faixa de no mínimo 2 meses adjacentes).
+ */
+export interface CompetenciaRange {
+  from: string;
+  to: string;
+}
+
 /** Manifesto publicado junto com os Parquet (metadados globais). */
 export interface AggregateIndex {
   availableUFs: string[];

@@ -7,7 +7,7 @@
 
 import type maplibregl from 'maplibre-gl';
 
-import type { MunicipioAggregate, UfAggregate } from './aggregates';
+import type { CompetenciaRange, MunicipioAggregate, UfAggregate } from './aggregates';
 import { PMTILES_URL } from './data-source';
 
 export const SOURCE_ID = 'brasil';
@@ -114,11 +114,11 @@ export function toggleDrilldown(map: maplibregl.Map, uf: null | string): void {
 export function pushUfState(
   map: maplibregl.Map,
   ufData: readonly UfAggregate[],
-  competencia: string,
+  range: CompetenciaRange,
 ): void {
   // Soma todos os biomarcadores (sem filtro de LOINC) — cor reflete
-  // volume laboratorial total do mês por UF.
-  const filtered = ufData.filter((r) => r.competencia === competencia);
+  // volume laboratorial total da faixa por UF.
+  const filtered = ufData.filter((r) => r.competencia >= range.from && r.competencia <= range.to);
   const somaPorUf = new Map<string, { valor: number; volume: number }>();
   for (const r of filtered) {
     const prev = somaPorUf.get(r.ufSigla) ?? { valor: 0, volume: 0 };
@@ -150,11 +150,11 @@ export function pushUfState(
 export function pushMunicipioState(
   map: maplibregl.Map,
   data: readonly MunicipioAggregate[],
-  competencia: string,
+  range: CompetenciaRange,
 ): void {
   // Soma todos os biomarcadores (sem filtro de LOINC) — cor reflete
-  // volume laboratorial total do mês por município.
-  const filtered = data.filter((r) => r.competencia === competencia);
+  // volume laboratorial total da faixa por município.
+  const filtered = data.filter((r) => r.competencia >= range.from && r.competencia <= range.to);
   const byMun = new Map<string, { municipioNome: string; valor: number; volume: number }>();
   for (const r of filtered) {
     const key6 = r.municipioCode.slice(0, 6);

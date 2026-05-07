@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
 
-import type { MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
+import type { CompetenciaRange, MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
 import {
   addMapLayers,
   MUN_FILL,
@@ -29,7 +29,7 @@ export interface SelectedMunicipio {
 
 export interface BrasilMapProps {
   availableUFs: readonly string[];
-  competencia: string;
+  competenciaRange: CompetenciaRange;
   /** Quando setado, pede que o mapa centralize/zoom no município (codarea). */
   focusMunCodigo: null | string;
   /** Agregado municipal da UF ativa no drill-down (ou null). */
@@ -217,10 +217,10 @@ export function BrasilMap(props: BrasilMapProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const apply = (): void => pushUfState(map, props.ufData, props.competencia);
+    const apply = (): void => pushUfState(map, props.ufData, props.competenciaRange);
     if (loadedRef.current) apply();
     else map.once('load', apply);
-  }, [props.ufData, props.competencia]);
+  }, [props.ufData, props.competenciaRange]);
 
   // Transição de UF (entrar/sair do drill-down): toggle layers + fitBounds.
   // Isolado de mudanças de competência/municipioData para preservar o zoom
@@ -265,11 +265,11 @@ export function BrasilMap(props: BrasilMapProps) {
     const map = mapRef.current;
     if (!map || !props.selectedUf || !props.municipioData) return;
     const muni = props.municipioData;
-    const comp = props.competencia;
+    const range = props.competenciaRange;
     const tryApply = (): boolean => {
       const f = map.querySourceFeatures(SOURCE_ID, { sourceLayer: MUN_LAYER });
       if (f.length === 0) return false;
-      pushMunicipioState(map, muni, comp);
+      pushMunicipioState(map, muni, range);
       return true;
     };
     const run = (): void => {
@@ -282,7 +282,7 @@ export function BrasilMap(props: BrasilMapProps) {
     };
     if (loadedRef.current) run();
     else map.once('load', run);
-  }, [props.selectedUf, props.municipioData, props.competencia]);
+  }, [props.selectedUf, props.municipioData, props.competenciaRange]);
 
   return (
     <div className="relative h-full w-full">

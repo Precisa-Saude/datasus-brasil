@@ -3,13 +3,19 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import type { SelectedMunicipio } from '@/components/BrasilMap';
 import { BrasilMap } from '@/components/BrasilMap';
-import { CompetenciaSlider, formatCompetencia } from '@/components/CompetenciaSlider';
+import { CompetenciaBrush } from '@/components/CompetenciaBrush';
 import { MunicipioDetail } from '@/components/MunicipioDetail';
 import type { OverviewRow } from '@/components/OverviewTable';
 import { OverviewTable } from '@/components/OverviewTable';
 import type { AggregateIndex, MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
 import { MANIFEST_URL } from '@/lib/data-source';
-import { fetchMunicipioAggregates, fetchUfAggregates } from '@/lib/queries';
+import { formatCompetenciaRange } from '@/lib/format';
+import {
+  fetchMunicipioAggregates,
+  fetchUfAggregates,
+  fetchVolumeByCompetencia,
+} from '@/lib/queries';
+import { useCompetenciaRange } from '@/lib/use-competencia-range';
 
 async function loadManifest(): Promise<AggregateIndex> {
   const res = await fetch(MANIFEST_URL);
@@ -36,28 +42,26 @@ function formatGeradoEm(iso: string): string {
 export default function Home() {
   // URL é a fonte da verdade do drill-down. `/` = Brasil,
   // `/uf/:ufSigla` = UF, `/uf/:ufSigla/mun/:codigo` = município.
-  // Competência fica em ?competencia= para ser preservada entre níveis
-  // sem inflar o histórico do browser.
+  // Faixa de competências fica em ?from=YYYY-MM&to=YYYY-MM para ser
+  // preservada entre níveis sem inflar o histórico do browser.
   const params = useParams<{ codigo?: string; ufSigla?: string }>();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const ufSiglaParam = params.ufSigla?.toUpperCase() ?? null;
   const codigoParam = params.codigo ?? null;
 
   const [manifest, setManifest] = useState<AggregateIndex | null>(null);
   const [ufData, setUfData] = useState<UfAggregate[] | null>(null);
   const [municipioData, setMunicipioData] = useState<MunicipioAggregate[] | null>(null);
+  const [volumeByCompetencia, setVolumeByCompetencia] = useState<Map<string, number>>(
+    () => new Map(),
+  );
   const [error, setError] = useState<null | string>(null);
   const [refitUfSignal, setRefitUfSignal] = useState(0);
 
-  const competenciaParam = searchParams.get('competencia');
-  const competencia = useMemo<null | string>(() => {
-    if (!manifest) return null;
-    if (competenciaParam && manifest.competencias.includes(competenciaParam)) {
-      return competenciaParam;
-    }
-    return manifest.competencias[manifest.competencias.length - 1] ?? null;
-  }, [manifest, competenciaParam]);
+  const { range: competenciaRange, setRange: handleRangeChange } = useCompetenciaRange(
+    manifest?.competencias,
+  );
 
   // Offset = altura do header (h-16 = 4rem) + respiro de 1.5rem.
   const PANEL_TOP = 'calc(4rem + 1.5rem)';
@@ -84,6 +88,16 @@ export default function Home() {
       (m) => setManifest(m),
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
+    fetchVolumeByCompetencia().then(
+      (rows) => {
+        const map = new Map<string, number>();
+        for (const r of rows) map.set(r.competencia, r.volumeExames);
+        setVolumeByCompetencia(map);
+      },
+      // Histograma é decoração; sem dado, brush ainda funciona.
+      // eslint-disable-next-line no-console
+      (e: unknown) => console.warn('[fetchVolumeByCompetencia]', e),
+    );
   }, []);
 
   // UF inválida na URL → volta pra Brasil (replace, sem poluir histórico).
@@ -97,23 +111,23 @@ export default function Home() {
   const selectedUf = ufSiglaParam;
 
   useEffect(() => {
-    if (!competencia) return;
-    fetchUfAggregates(competencia).then(
+    if (!competenciaRange) return;
+    fetchUfAggregates(competenciaRange).then(
       (rows) => setUfData(rows),
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
-  }, [competencia]);
+  }, [competenciaRange]);
 
   useEffect(() => {
-    if (!selectedUf || !competencia) {
+    if (!selectedUf || !competenciaRange) {
       setMunicipioData(null);
       return;
     }
-    fetchMunicipioAggregates(selectedUf, competencia).then(
+    fetchMunicipioAggregates(selectedUf, competenciaRange).then(
       (rows) => setMunicipioData(rows),
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
-  }, [selectedUf, competencia]);
+  }, [selectedUf, competenciaRange]);
 
   // selectedMun é derivado do path + municipioData (precisa do nome
   // pra exibir no painel). Enquanto os dados não chegam, usa o código
@@ -171,25 +185,12 @@ export default function Home() {
     setRefitUfSignal((n) => n + 1);
   }, [navigate, searchSuffix, selectedUf]);
 
-  const handleCompetenciaChange = useCallback(
-    (v: string) => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          next.set('competencia', v);
-          return next;
-        },
-        { replace: true },
-      );
-    },
-    [setSearchParams],
-  );
-
   const ufRows = useMemo<OverviewRow[]>(() => {
-    if (!ufData || !competencia) return [];
+    if (!ufData || !competenciaRange) return [];
+    const { from, to } = competenciaRange;
     const byUf = new Map<string, { valor: number; volume: number }>();
     for (const r of ufData) {
-      if (r.competencia !== competencia) continue;
+      if (r.competencia < from || r.competencia > to) continue;
       const prev = byUf.get(r.ufSigla) ?? { valor: 0, volume: 0 };
       prev.volume += r.volumeExames;
       prev.valor += r.valorAprovadoBRL;
@@ -201,16 +202,17 @@ export default function Home() {
       valor: v.valor,
       volume: v.volume,
     }));
-  }, [ufData, competencia]);
+  }, [ufData, competenciaRange]);
 
   const muniRows = useMemo<OverviewRow[]>(() => {
-    if (!municipioData || !competencia) return [];
+    if (!municipioData || !competenciaRange) return [];
+    const { from, to } = competenciaRange;
     const byMun = new Map<
       string,
       { municipioCode: string; municipioNome: string; valor: number; volume: number }
     >();
     for (const r of municipioData) {
-      if (r.competencia !== competencia) continue;
+      if (r.competencia < from || r.competencia > to) continue;
       const prev = byMun.get(r.municipioCode) ?? {
         municipioCode: r.municipioCode,
         municipioNome: r.municipioNome,
@@ -227,7 +229,7 @@ export default function Home() {
       valor: v.valor,
       volume: v.volume,
     }));
-  }, [municipioData, competencia]);
+  }, [municipioData, competenciaRange]);
 
   const handleUfRowClick = useCallback(
     (row: OverviewRow) => {
@@ -245,13 +247,13 @@ export default function Home() {
   );
 
   const tablePanel = ((): React.ReactNode => {
-    if (!manifest || !competencia) return null;
-    const subtitle = `SIA-SUS ${formatCompetencia(competencia)}`;
+    if (!manifest || !competenciaRange) return null;
+    const subtitle = `SIA-SUS ${formatCompetenciaRange(competenciaRange)}`;
     if (selectedUf && selectedMun && municipioData) {
       return (
         <MunicipioDetail
           biomarkersByLoinc={biomarkersByLoinc}
-          competencia={competencia}
+          competenciaRange={competenciaRange}
           data={municipioData}
           municipio={selectedMun}
           onClose={handleCloseCity}
@@ -264,7 +266,7 @@ export default function Home() {
           emptyMessage={
             municipioData === null
               ? 'Carregando municípios…'
-              : 'Nenhum município com exames laboratoriais nesta competência.'
+              : 'Nenhum município com exames laboratoriais na faixa selecionada.'
           }
           onClose={handleBackToBrazil}
           onRowClick={handleMuniRowClick}
@@ -281,7 +283,7 @@ export default function Home() {
     }
     return (
       <OverviewTable
-        emptyMessage="Sem dados para a competência selecionada."
+        emptyMessage="Sem dados para a faixa selecionada."
         onRowClick={handleUfRowClick}
         primaryLabel="UF"
         rows={ufRows}
@@ -294,10 +296,10 @@ export default function Home() {
   return (
     <div className="relative flex-1 overflow-hidden">
       <div className="absolute inset-0">
-        {manifest && ufData && competencia !== null ? (
+        {manifest && ufData && competenciaRange !== null ? (
           <BrasilMap
             availableUFs={manifest.availableUFs}
-            competencia={competencia}
+            competenciaRange={competenciaRange}
             focusMunCodigo={selectedMun?.codigo ?? null}
             municipioData={municipioData}
             onMunicipioClick={handleMunicipioClick}
@@ -314,7 +316,7 @@ export default function Home() {
         ) : null}
       </div>
 
-      {manifest && competencia !== null ? (
+      {manifest && competenciaRange !== null ? (
         <aside
           className="border-border bg-card/95 pointer-events-auto absolute z-10 space-y-2 overflow-auto rounded-lg border p-4 shadow-lg backdrop-blur-md"
           style={panelStyle}
@@ -328,8 +330,8 @@ export default function Home() {
               : 'Cada polígono é uma UF, colorida pelo volume de exames aprovados. Clique para detalhar por município.'}
           </p>
           <p className="text-muted-foreground font-margem text-xs leading-snug">
-            SIA-SUS {formatCompetencia(competencia)}. Filtrado para SIGTAP 02.02 (laboratório) e
-            cruzado com LOINC. Dados: {manifest.availableUFs.length}/27 UFs ×{' '}
+            SIA-SUS {formatCompetenciaRange(competenciaRange)}. Filtrado para SIGTAP 02.02
+            (laboratório) e cruzado com LOINC. Dados: {manifest.availableUFs.length}/27 UFs ×{' '}
             {manifest.years.length > 0
               ? `${manifest.years[0]}–${manifest.years[manifest.years.length - 1]}`
               : '—'}
@@ -344,12 +346,13 @@ export default function Home() {
         </aside>
       ) : null}
 
-      {manifest && competencia !== null ? (
+      {manifest && competenciaRange !== null ? (
         <div className="border-border bg-card/95 pointer-events-auto absolute bottom-10 left-1/2 z-10 w-[min(640px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border p-4 shadow-lg backdrop-blur-md">
-          <CompetenciaSlider
+          <CompetenciaBrush
             competencias={manifest.competencias}
-            onChange={handleCompetenciaChange}
-            value={competencia}
+            onChange={handleRangeChange}
+            value={competenciaRange}
+            volumeByCompetencia={volumeByCompetencia}
           />
         </div>
       ) : null}

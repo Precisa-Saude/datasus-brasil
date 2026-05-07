@@ -22,22 +22,27 @@ beforeEach(() => {
 });
 
 describe('fetchUfAggregates', () => {
-  it('filtra pela competência informada', async () => {
-    await fetchUfAggregates('2024-01');
+  it('filtra pela faixa de competências informada', async () => {
+    await fetchUfAggregates({ from: '2024-01', to: '2024-06' });
     const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain("WHERE competencia = '2024-01'");
+    expect(sql).toContain("WHERE competencia BETWEEN '2024-01' AND '2024-06'");
     expect(sql).toContain('uf-totals.parquet');
   });
 
   it('faz CAST para DOUBLE para evitar BigInt no cliente', async () => {
-    await fetchUfAggregates('2024-02');
+    await fetchUfAggregates({ from: '2024-02', to: '2024-02' });
     const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
     expect(sql).toContain('CAST(volumeExames AS DOUBLE)');
     expect(sql).toContain('CAST(valorAprovadoBRL AS DOUBLE)');
   });
 
   it('rejeita competência com caracteres fora do whitelist (defesa contra SQL injection)', async () => {
-    await expect(fetchUfAggregates("2024'01")).rejects.toThrow(/competencia/);
+    await expect(fetchUfAggregates({ from: "2024'01", to: '2024-06' })).rejects.toThrow(
+      /competencia/,
+    );
+    await expect(fetchUfAggregates({ from: '2024-01', to: "2024'06" })).rejects.toThrow(
+      /competencia/,
+    );
     expect(queryAllMock).not.toHaveBeenCalled();
   });
 
@@ -51,7 +56,7 @@ describe('fetchUfAggregates', () => {
         volumeExames: 10,
       },
     ]);
-    const rows = await fetchUfAggregates('2024-01');
+    const rows = await fetchUfAggregates({ from: '2024-01', to: '2024-01' });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.ufSigla).toBe('SP');
   });
@@ -148,22 +153,26 @@ describe('fetchTopUfsByVolume', () => {
 });
 
 describe('fetchMunicipioAggregates', () => {
-  it('lê do Parquet consolidado da UF', async () => {
-    await fetchMunicipioAggregates('SP', '2024-01');
+  it('lê do Parquet consolidado da UF e filtra por faixa', async () => {
+    await fetchMunicipioAggregates('SP', { from: '2024-01', to: '2024-12' });
     const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
     expect(sql).toContain('uf=SP/part.parquet');
-    expect(sql).toContain("WHERE competencia = '2024-01'");
+    expect(sql).toContain("WHERE competencia BETWEEN '2024-01' AND '2024-12'");
   });
 
   it('injeta ufSigla como literal na SELECT', async () => {
-    await fetchMunicipioAggregates('RJ', '2024-05');
+    await fetchMunicipioAggregates('RJ', { from: '2024-05', to: '2024-05' });
     const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
     expect(sql).toContain("'RJ' AS ufSigla");
   });
 
   it('rejeita uf e competência com caracteres fora do whitelist', async () => {
-    await expect(fetchMunicipioAggregates("A'C", '2024-01')).rejects.toThrow(/ufSigla/);
-    await expect(fetchMunicipioAggregates('SP', "2024'01")).rejects.toThrow(/competencia/);
+    await expect(
+      fetchMunicipioAggregates("A'C", { from: '2024-01', to: '2024-02' }),
+    ).rejects.toThrow(/ufSigla/);
+    await expect(
+      fetchMunicipioAggregates('SP', { from: "2024'01", to: '2024-02' }),
+    ).rejects.toThrow(/competencia/);
     expect(queryAllMock).not.toHaveBeenCalled();
   });
 });

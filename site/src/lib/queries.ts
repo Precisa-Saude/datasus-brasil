@@ -1,3 +1,4 @@
+import type { CompetenciaRange } from './aggregates';
 import { UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
 import { queryAll } from './duckdb';
 
@@ -39,12 +40,13 @@ export interface MunicipioAggregateRow {
 }
 
 /**
- * Agregado nacional para uma única competência (mês), vindo do Parquet
- * consolidado `uf-totals.parquet`. Um único arquivo pequeno = **um GET**
- * S3 por query, em vez de varrer todas as partições anuais.
+ * Agregado nacional para uma faixa fechada de competências, vindo do
+ * Parquet consolidado `uf-totals.parquet`. Um único arquivo pequeno =
+ * **um GET** S3 por query, em vez de varrer todas as partições anuais.
  */
-export async function fetchUfAggregates(competencia: string): Promise<UfAggregateRow[]> {
-  assertSafe('competencia', competencia);
+export async function fetchUfAggregates(range: CompetenciaRange): Promise<UfAggregateRow[]> {
+  assertSafe('competencia', range.from);
+  assertSafe('competencia', range.to);
   // CAST para DOUBLE evita BigInt no cliente — int64 vira BigInt no
   // DuckDB WASM por default, o que quebra `Math.max(...numbers)`.
   return queryAll<UfAggregateRow>(`
@@ -55,22 +57,23 @@ export async function fetchUfAggregates(competencia: string): Promise<UfAggregat
       CAST(volumeExames AS DOUBLE) AS volumeExames,
       CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
     FROM read_parquet('${UF_TOTALS_PARQUET}')
-    WHERE competencia = '${competencia.replace(/'/g, "''")}'
+    WHERE competencia BETWEEN '${range.from.replace(/'/g, "''")}' AND '${range.to.replace(/'/g, "''")}'
   `);
 }
 
 /**
- * Dados municipais de uma UF para uma competência específica. Usa o
+ * Dados municipais de uma UF para uma faixa de competências. Usa o
  * Parquet consolidado por UF (18 anos num só arquivo); pushdown de
  * filtro por competência via row-group statistics do Parquet evita
  * ler row-groups de outras datas.
  */
 export async function fetchMunicipioAggregates(
   ufSigla: string,
-  competencia: string,
+  range: CompetenciaRange,
 ): Promise<MunicipioAggregateRow[]> {
   assertSafe('ufSigla', ufSigla);
-  assertSafe('competencia', competencia);
+  assertSafe('competencia', range.from);
+  assertSafe('competencia', range.to);
   const safeUf = ufSigla.replace(/'/g, "''");
   return queryAll<MunicipioAggregateRow>(`
     SELECT
@@ -82,7 +85,28 @@ export async function fetchMunicipioAggregates(
       CAST(volumeExames AS DOUBLE) AS volumeExames,
       CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
     FROM read_parquet('${ufPartitionUrl(ufSigla)}')
-    WHERE competencia = '${competencia.replace(/'/g, "''")}'
+    WHERE competencia BETWEEN '${range.from.replace(/'/g, "''")}' AND '${range.to.replace(/'/g, "''")}'
+  `);
+}
+
+export interface VolumeByCompetenciaRow {
+  competencia: string;
+  volumeExames: number;
+}
+
+/**
+ * Volume nacional total de exames por competência (uma linha por mês).
+ * Alimenta o histograma do brush — uma única requisição S3, sem filtro
+ * por LOINC/UF, agrupando direto no DuckDB.
+ */
+export async function fetchVolumeByCompetencia(): Promise<VolumeByCompetenciaRow[]> {
+  return queryAll<VolumeByCompetenciaRow>(`
+    SELECT
+      competencia,
+      CAST(SUM(volumeExames) AS DOUBLE) AS volumeExames
+    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    GROUP BY competencia
+    ORDER BY competencia
   `);
 }
 
