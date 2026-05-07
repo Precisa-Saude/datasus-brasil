@@ -29,10 +29,32 @@ interface DragState {
   startIdx: number;
 }
 
-const HISTOGRAM_HEIGHT = 56;
-const TRACK_HEIGHT = 12;
-const GAP = 4;
-const HANDLE_WIDTH = 10;
+const TRACK_HEIGHT = 14;
+const HISTOGRAM_HEIGHT = 48;
+const GAP = 2;
+const HANDLE_WIDTH = 8;
+const HANDLE_OVERFLOW = 4;
+const YEAR_LABEL_MIN_PX = 28;
+
+interface YearTick {
+  idx: number;
+  label: string;
+  x: number;
+}
+
+function computeYearTicks(months: string[], idxToX: (idx: number) => number): YearTick[] {
+  const ticks: YearTick[] = [];
+  let lastX = -Infinity;
+  for (let i = 0; i < months.length; i += 1) {
+    const c = months[i] as string;
+    if (!c.endsWith('-01')) continue;
+    const x = idxToX(i);
+    if (x - lastX < YEAR_LABEL_MIN_PX) continue;
+    ticks.push({ idx: i, label: c.slice(0, 4), x });
+    lastX = x;
+  }
+  return ticks;
+}
 
 export function CompetenciaBrush({
   competencias,
@@ -43,6 +65,13 @@ export function CompetenciaBrush({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(640);
   const dragRef = useRef<DragState | null>(null);
+
+  // Estado local da janela durante o drag — mantém o brush responsivo
+  // (Falcon-like), evitando que cada pixel mexido propague pra URL e
+  // dispare refetch + recolor do mapa. `null` = sem drag em curso e o
+  // valor canônico é o `value` do prop.
+  const [draftRange, setDraftRange] = useState<CompetenciaRange | null>(null);
+  const effectiveValue = draftRange ?? value;
 
   // ResizeObserver pra acompanhar largura do container; o histograma e o
   // brush são desenhados em SVG via coordenadas absolutas em px.
@@ -59,9 +88,9 @@ export function CompetenciaBrush({
 
   const months = competencias;
   const n = months.length;
-  const max = Math.max(0, n - 1);
-  const fromIdx = Math.max(0, months.indexOf(value.from));
-  const toIdx = Math.max(fromIdx + MIN_SPAN, months.indexOf(value.to));
+  const maxIdx = Math.max(0, n - 1);
+  const fromIdx = Math.max(0, months.indexOf(effectiveValue.from));
+  const toIdx = Math.max(fromIdx + MIN_SPAN, months.indexOf(effectiveValue.to));
 
   const maxVolume = useMemo(() => {
     let m = 0;
@@ -71,33 +100,48 @@ export function CompetenciaBrush({
 
   const barAreaWidth = Math.max(1, width);
   const barStep = n > 0 ? barAreaWidth / n : 0;
-  const histogramTop = 0;
-  const trackTop = HISTOGRAM_HEIGHT + GAP;
+  const trackTop = 0;
+  const histogramTop = TRACK_HEIGHT + GAP;
+  const svgHeight = TRACK_HEIGHT + GAP + HISTOGRAM_HEIGHT;
 
-  // Conversão px ↔ índice. Usa o centro de cada faixa de mês como ponto
-  // âncora pra que `Math.round` faça o snap correto.
   const idxToX = useCallback((idx: number) => idx * barStep + barStep / 2, [barStep]);
   const xToIdx = useCallback(
     (x: number) => {
       if (barStep <= 0) return 0;
-      return Math.max(0, Math.min(max, Math.round((x - barStep / 2) / barStep)));
+      return Math.max(0, Math.min(maxIdx, Math.round((x - barStep / 2) / barStep)));
     },
-    [barStep, max],
+    [barStep, maxIdx],
   );
 
-  const emit = useCallback(
+  const updateDraft = useCallback(
     (nextFrom: number, nextTo: number) => {
-      if (nextFrom === fromIdx && nextTo === toIdx) return;
       const from = months[nextFrom];
       const to = months[nextTo];
       if (!from || !to) return;
-      onChange({ from, to });
+      setDraftRange((prev) => {
+        if (prev && prev.from === from && prev.to === to) return prev;
+        return { from, to };
+      });
     },
-    [months, fromIdx, toIdx, onChange],
+    [months],
   );
 
-  const handlePointerMove = useCallback(
-    (e: PointerEvent) => {
+  const commit = useCallback(() => {
+    const draft = draftRange;
+    setDraftRange(null);
+    if (!draft) return;
+    if (draft.from === value.from && draft.to === value.to) return;
+    onChange(draft);
+  }, [draftRange, value.from, value.to, onChange]);
+
+  // Refs pra que listeners no `window` enxerguem sempre os callbacks
+  // mais recentes sem precisar reanexar. Reanexar a cada drag move
+  // adiciona overhead e quebra `setPointerCapture`/touch tracking.
+  const moveRef = useRef<((e: PointerEvent) => void) | null>(null);
+  const upRef = useRef<((e: PointerEvent) => void) | null>(null);
+
+  useEffect(() => {
+    moveRef.current = (e: PointerEvent) => {
       const drag = dragRef.current;
       const el = containerRef.current;
       if (!drag || !el) return;
@@ -106,30 +150,24 @@ export function CompetenciaBrush({
 
       if (drag.mode === 'start') {
         const idx = Math.min(drag.endIdx - MIN_SPAN, xToIdx(x));
-        emit(Math.max(0, idx), drag.endIdx);
+        updateDraft(Math.max(0, idx), drag.endIdx);
       } else if (drag.mode === 'end') {
         const idx = Math.max(drag.startIdx + MIN_SPAN, xToIdx(x));
-        emit(drag.startIdx, Math.min(max, idx));
+        updateDraft(drag.startIdx, Math.min(maxIdx, idx));
       } else {
-        // 'middle' — preserva largura da janela, clamp nas bordas.
         const span = drag.endIdx - drag.startIdx;
-        // Posição do pointer em índice fracionário, sem snap (snap só na
-        // posição final do start, pra manter a largura inteira).
         const pointerIdx = barStep > 0 ? (x - barStep / 2) / barStep : 0;
         const delta = pointerIdx - drag.pointerIdxAtDown;
         let nextStart = Math.round(drag.startIdx + delta);
-        nextStart = Math.max(0, Math.min(max - span, nextStart));
-        emit(nextStart, nextStart + span);
+        nextStart = Math.max(0, Math.min(maxIdx - span, nextStart));
+        updateDraft(nextStart, nextStart + span);
       }
-    },
-    [emit, xToIdx, barStep, max],
-  );
-
-  const handlePointerUp = useCallback(() => {
-    dragRef.current = null;
-    window.removeEventListener('pointermove', handlePointerMove);
-    window.removeEventListener('pointerup', handlePointerUp);
-  }, [handlePointerMove]);
+    };
+    upRef.current = () => {
+      dragRef.current = null;
+      commit();
+    };
+  }, [xToIdx, barStep, maxIdx, updateDraft, commit]);
 
   const startDrag = useCallback(
     (mode: Exclude<DragMode, null>, e: React.PointerEvent) => {
@@ -140,18 +178,19 @@ export function CompetenciaBrush({
       const x = e.clientX - rect.left;
       const pointerIdxAtDown = barStep > 0 ? (x - barStep / 2) / barStep : 0;
       dragRef.current = { endIdx: toIdx, mode, pointerIdxAtDown, startIdx: fromIdx };
-      window.addEventListener('pointermove', handlePointerMove);
-      window.addEventListener('pointerup', handlePointerUp);
+      // Inicia o draft no estado atual pra que `commit` reconheça
+      // mudança mesmo se o usuário só clicar (sem mover).
+      setDraftRange({ from: months[fromIdx] as string, to: months[toIdx] as string });
+      const onMove = (ev: PointerEvent): void => moveRef.current?.(ev);
+      const onUp = (ev: PointerEvent): void => {
+        upRef.current?.(ev);
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
     },
-    [fromIdx, toIdx, barStep, handlePointerMove, handlePointerUp],
-  );
-
-  useEffect(
-    () => () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    },
-    [handlePointerMove, handlePointerUp],
+    [fromIdx, toIdx, barStep, months],
   );
 
   const handleKey = useCallback(
@@ -167,14 +206,16 @@ export function CompetenciaBrush({
         next =
           which === 'start'
             ? { from: Math.min(toIdx - MIN_SPAN, fromIdx + step), to: toIdx }
-            : { from: fromIdx, to: Math.min(max, toIdx + step) };
+            : { from: fromIdx, to: Math.min(maxIdx, toIdx + step) };
       }
-      if (next) {
-        e.preventDefault();
-        emit(next.from, next.to);
-      }
+      if (!next) return;
+      e.preventDefault();
+      if (next.from === fromIdx && next.to === toIdx) return;
+      const from = months[next.from];
+      const to = months[next.to];
+      if (from && to) onChange({ from, to });
     },
-    [fromIdx, toIdx, max, emit],
+    [fromIdx, toIdx, maxIdx, months, onChange],
   );
 
   const startX = idxToX(fromIdx) - barStep / 2;
@@ -191,6 +232,8 @@ export function CompetenciaBrush({
         ? { right: 0 }
         : { left: `${labelCenterX}px`, transform: 'translateX(-50%)' };
 
+  const yearTicks = useMemo(() => computeYearTicks(months, idxToX), [months, idxToX]);
+
   return (
     <div className="flex flex-col gap-1">
       <span className="text-muted-foreground font-sans text-[11px] font-medium tracking-wide uppercase">
@@ -201,35 +244,15 @@ export function CompetenciaBrush({
           className="text-foreground pointer-events-none absolute top-0 font-sans text-sm font-semibold tabular-nums whitespace-nowrap"
           style={labelStyle}
         >
-          {formatCompetenciaRange(value)}
+          {formatCompetenciaRange(effectiveValue)}
         </span>
         <svg
-          className="block w-full select-none"
-          height={HISTOGRAM_HEIGHT + GAP + TRACK_HEIGHT}
+          className="block w-full select-none overflow-visible"
+          height={svgHeight}
           style={{ touchAction: 'none' }}
           width={width}
         >
-          {/* Barras do histograma */}
-          {months.map((c, i) => {
-            const v = volumeByCompetencia.get(c) ?? 0;
-            const h = Math.max(1, (v / maxVolume) * HISTOGRAM_HEIGHT);
-            const inside = i >= fromIdx && i <= toIdx;
-            const x = i * barStep;
-            const barW = Math.max(1, barStep - 1);
-            return (
-              <rect
-                key={c}
-                fill={inside ? 'var(--primary)' : 'var(--muted-foreground)'}
-                fillOpacity={inside ? 0.85 : 0.25}
-                height={h}
-                width={barW}
-                x={x}
-                y={histogramTop + (HISTOGRAM_HEIGHT - h)}
-              />
-            );
-          })}
-
-          {/* Track de fundo do brush */}
+          {/* Track de fundo do brush — full-width, edge-to-edge */}
           <rect
             fill="var(--secondary)"
             height={TRACK_HEIGHT}
@@ -240,10 +263,10 @@ export function CompetenciaBrush({
             y={trackTop}
           />
 
-          {/* Janela ativa (drag = move) */}
+          {/* Janela ativa do brush (drag = move) */}
           <rect
             fill="var(--primary)"
-            fillOpacity={0.25}
+            fillOpacity={0.35}
             height={TRACK_HEIGHT}
             onPointerDown={(e) => startDrag('middle', e)}
             rx={TRACK_HEIGHT / 2}
@@ -255,10 +278,11 @@ export function CompetenciaBrush({
             x={startX}
             y={trackTop}
           />
+
           {/* Sobreposição translúcida da janela em cima do histograma */}
           <rect
             fill="var(--primary)"
-            fillOpacity={0.06}
+            fillOpacity={0.08}
             height={HISTOGRAM_HEIGHT}
             pointerEvents="none"
             width={windowW}
@@ -266,71 +290,90 @@ export function CompetenciaBrush({
             y={histogramTop}
           />
 
+          {/* Barras do histograma — abaixo do brush */}
+          {months.map((c, i) => {
+            const v = volumeByCompetencia.get(c) ?? 0;
+            const h = v > 0 ? Math.max(1, (v / maxVolume) * HISTOGRAM_HEIGHT) : 0;
+            const inside = i >= fromIdx && i <= toIdx;
+            const x = i * barStep;
+            const barW = Math.max(1, barStep - 1);
+            return (
+              <rect
+                fill={inside ? 'var(--primary)' : 'var(--muted-foreground)'}
+                fillOpacity={inside ? 0.85 : 0.3}
+                height={h}
+                key={c}
+                width={barW}
+                x={x}
+                y={histogramTop + (HISTOGRAM_HEIGHT - h)}
+              />
+            );
+          })}
+
           {/* Handle esquerdo */}
           <rect
             aria-label="Início da faixa"
             aria-valuemax={toIdx - MIN_SPAN}
             aria-valuemin={0}
             aria-valuenow={fromIdx}
-            aria-valuetext={formatCompetencia(value.from)}
+            aria-valuetext={formatCompetencia(effectiveValue.from)}
             fill="var(--background)"
-            height={TRACK_HEIGHT + 8}
+            height={TRACK_HEIGHT + HANDLE_OVERFLOW * 2}
             onKeyDown={(e) => handleKey('start', e)}
             onPointerDown={(e) => startDrag('start', e)}
-            rx={3}
-            ry={3}
+            role="slider"
+            rx={2}
+            ry={2}
             stroke="var(--primary)"
             strokeWidth={2}
             style={{ cursor: 'ew-resize', outline: 'none' }}
             tabIndex={0}
-            role="slider"
             width={HANDLE_WIDTH}
             x={startX - HANDLE_WIDTH / 2}
-            y={trackTop - 4}
+            y={trackTop - HANDLE_OVERFLOW}
           />
           {/* Handle direito */}
           <rect
             aria-label="Fim da faixa"
-            aria-valuemax={max}
+            aria-valuemax={maxIdx}
             aria-valuemin={fromIdx + MIN_SPAN}
             aria-valuenow={toIdx}
-            aria-valuetext={formatCompetencia(value.to)}
+            aria-valuetext={formatCompetencia(effectiveValue.to)}
             fill="var(--background)"
-            height={TRACK_HEIGHT + 8}
+            height={TRACK_HEIGHT + HANDLE_OVERFLOW * 2}
             onKeyDown={(e) => handleKey('end', e)}
             onPointerDown={(e) => startDrag('end', e)}
-            rx={3}
-            ry={3}
+            role="slider"
+            rx={2}
+            ry={2}
             stroke="var(--primary)"
             strokeWidth={2}
             style={{ cursor: 'ew-resize', outline: 'none' }}
             tabIndex={0}
-            role="slider"
             width={HANDLE_WIDTH}
             x={endX - HANDLE_WIDTH / 2}
-            y={trackTop - 4}
+            y={trackTop - HANDLE_OVERFLOW}
           />
         </svg>
 
-        {/* Labels de início de ano (mesmo padrão do slider antigo). */}
+        {/* Labels de início de ano — posicionadas em px (não em %) e
+            esparsadas pra evitar sobreposição quando há muitos anos. */}
         <div aria-hidden="true" className="relative mt-1 h-3">
-          {months.map((c, i) => {
-            if (!c.endsWith('-01')) return null;
-            const yearPct = max === 0 ? 0 : (i / max) * 100;
-            const align = yearPct < 4 ? 'start' : yearPct > 96 ? 'end' : 'center';
+          {yearTicks.map((t) => {
+            const align = t.x < 12 ? 'start' : t.x > width - 12 ? 'end' : 'center';
             const style: React.CSSProperties =
               align === 'start'
                 ? { left: 0 }
                 : align === 'end'
                   ? { right: 0 }
-                  : { left: `${yearPct}%`, transform: 'translateX(-50%)' };
+                  : { left: `${t.x}px`, transform: 'translateX(-50%)' };
             return (
               <span
-                key={c}
                 className="text-muted-foreground absolute top-0 font-sans text-[10px] tabular-nums"
+                key={t.idx}
                 style={style}
               >
-                {c.slice(0, 4)}
+                {t.label}
               </span>
             );
           })}
