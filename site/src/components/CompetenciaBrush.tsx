@@ -8,7 +8,17 @@ export interface CompetenciaBrushProps {
   value: CompetenciaRange;
   /** Volume nacional por competência. Mapas faltantes contam como 0. */
   volumeByCompetencia: Map<string, number>;
-  onChange: (range: CompetenciaRange) => void;
+  /**
+   * Disparado no `pointerup` (ou em mudanças de teclado) — fonte de
+   * verdade para a URL.
+   */
+  onCommit: (range: CompetenciaRange) => void;
+  /**
+   * Disparado a cada movimento do brush durante o drag — alimenta
+   * lookup no cubo de prefix-sum pra atualizar o mapa/tabela em tempo
+   * real (cf. Falcon, `src/app.ts:868-950`). Não atualiza URL.
+   */
+  onPreview: (range: CompetenciaRange) => void;
 }
 
 /**
@@ -128,7 +138,8 @@ function computeYearTicks(months: string[], idxToX: (idx: number) => number): Ye
 
 export function CompetenciaBrush({
   competencias,
-  onChange,
+  onCommit,
+  onPreview,
   value,
   volumeByCompetencia,
 }: CompetenciaBrushProps) {
@@ -189,26 +200,24 @@ export function CompetenciaBrush({
       if (!from || !to) return;
       setDraftRange((prev) => {
         if (prev && prev.from === from && prev.to === to) return prev;
-        return { from, to };
+        const nextRange = { from, to };
+        // Preview imediato pro parent — instant cube lookup,
+        // sem ida ao DuckDB nem update de URL.
+        onPreview(nextRange);
+        return nextRange;
       });
     },
-    [months],
+    [months, onPreview],
   );
 
   const commit = useCallback(() => {
     if (!draftRange) return;
     if (draftRange.from === value.from && draftRange.to === value.to) {
-      // Drag terminou no mesmo ponto onde começou — nada a propagar.
       setDraftRange(null);
       return;
     }
-    // NÃO limpa o draft aqui: o parent vai propagar `value` novo via
-    // URL, mas isso leva 1-2 ticks. Se zerássemos `draftRange`, o
-    // `effectiveValue` voltaria pro `value` antigo até o prop chegar
-    // — flicker visível ("a janela snap back" antes de pousar). O
-    // efeito abaixo zera o draft assim que o prop encosta no draft.
-    onChange(draftRange);
-  }, [draftRange, value.from, value.to, onChange]);
+    onCommit(draftRange);
+  }, [draftRange, value.from, value.to, onCommit]);
 
   useEffect(() => {
     if (
@@ -300,9 +309,9 @@ export function CompetenciaBrush({
       if (next.from === fromIdx && next.to === toIdx) return;
       const from = months[next.from];
       const to = months[next.to];
-      if (from && to) onChange({ from, to });
+      if (from && to) onCommit({ from, to });
     },
-    [fromIdx, toIdx, maxIdx, months, onChange],
+    [fromIdx, toIdx, maxIdx, months, onCommit],
   );
 
   const startX = idxToX(fromIdx) - barStep / 2;

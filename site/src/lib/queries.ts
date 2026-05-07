@@ -89,6 +89,33 @@ export async function fetchMunicipioAggregates(
   `);
 }
 
+/**
+ * Linhas (LOINC × mês) de um município específico, ao longo de todas
+ * as competências disponíveis. Alimenta o painel de detalhe; é
+ * filtrado por faixa client-side via Falcon-style cube/lookup.
+ */
+export async function fetchMunicipioDetail(
+  ufSigla: string,
+  municipioCode: string,
+): Promise<MunicipioAggregateRow[]> {
+  assertSafe('ufSigla', ufSigla);
+  assertSafe('municipioCode', municipioCode);
+  const safeUf = ufSigla.replace(/'/g, "''");
+  const safeMun = municipioCode.replace(/'/g, "''");
+  return queryAll<MunicipioAggregateRow>(`
+    SELECT
+      competencia,
+      loinc,
+      municipioCode,
+      municipioNome,
+      '${safeUf}' AS ufSigla,
+      CAST(volumeExames AS DOUBLE) AS volumeExames,
+      CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
+    FROM read_parquet('${ufPartitionUrl(ufSigla)}')
+    WHERE substr(municipioCode, 1, 6) = substr('${safeMun}', 1, 6)
+  `);
+}
+
 export interface VolumeByCompetenciaRow {
   competencia: string;
   volumeExames: number;

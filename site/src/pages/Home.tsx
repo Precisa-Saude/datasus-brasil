@@ -7,15 +7,12 @@ import { CompetenciaBrush } from '@/components/CompetenciaBrush';
 import { MunicipioDetail } from '@/components/MunicipioDetail';
 import type { OverviewRow } from '@/components/OverviewTable';
 import { OverviewTable } from '@/components/OverviewTable';
-import type { AggregateIndex, MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
+import type { AggregateIndex, CompetenciaRange, MunicipioAggregate } from '@/lib/aggregates';
 import { MANIFEST_URL } from '@/lib/data-source';
 import { formatCompetenciaRange } from '@/lib/format';
-import {
-  fetchMunicipioAggregates,
-  fetchUfAggregates,
-  fetchVolumeByCompetencia,
-} from '@/lib/queries';
+import { fetchMunicipioDetail, fetchVolumeByCompetencia } from '@/lib/queries';
 import { useCompetenciaRange } from '@/lib/use-competencia-range';
+import { useDataCubes } from '@/lib/use-data-cubes';
 
 async function loadManifest(): Promise<AggregateIndex> {
   const res = await fetch(MANIFEST_URL);
@@ -51,17 +48,31 @@ export default function Home() {
   const codigoParam = params.codigo ?? null;
 
   const [manifest, setManifest] = useState<AggregateIndex | null>(null);
-  const [ufData, setUfData] = useState<UfAggregate[] | null>(null);
-  const [municipioData, setMunicipioData] = useState<MunicipioAggregate[] | null>(null);
+  const [municipioDetailData, setMunicipioDetailData] = useState<MunicipioAggregate[] | null>(null);
   const [volumeByCompetencia, setVolumeByCompetencia] = useState<Map<string, number>>(
     () => new Map(),
   );
   const [error, setError] = useState<null | string>(null);
   const [refitUfSignal, setRefitUfSignal] = useState(0);
 
-  const { range: competenciaRange, setRange: handleRangeChange } = useCompetenciaRange(
+  const { range: competenciaRange, setRange: commitRange } = useCompetenciaRange(
     manifest?.competencias,
   );
+
+  // `previewRange` reflete o brush em tempo real (durante o drag e
+  // entre committed). Aliments lookups no cubo — quando o usuário
+  // arrasta o brush, isso vira a fonte de verdade pro mapa/tabela.
+  // Falcon faz o mesmo: durante o drag, o "brush state" é puramente
+  // local e o lookup no prefix-sum cube atualiza as passive views
+  // sem ida ao DB (`src/app.ts:868-950`).
+  const [previewRange, setPreviewRange] = useState<CompetenciaRange | null>(null);
+  const effectiveRange = previewRange ?? competenciaRange;
+
+  // Re-sincroniza preview quando o range commited muda externamente
+  // (URL, deep link, navegação).
+  useEffect(() => {
+    setPreviewRange(null);
+  }, [competenciaRange?.from, competenciaRange?.to]);
 
   // Offset = altura do header (h-16 = 4rem) + respiro de 1.5rem.
   const PANEL_TOP = 'calc(4rem + 1.5rem)';
@@ -110,51 +121,64 @@ export default function Home() {
 
   const selectedUf = ufSiglaParam;
 
-  useEffect(() => {
-    if (!competenciaRange) return;
-    fetchUfAggregates(competenciaRange).then(
-      (rows) => setUfData(rows),
-      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
-    );
-  }, [competenciaRange]);
+  const handleCubeError = useCallback((m: string) => setError(m), []);
+  const { municipioCube, municipioTotals, ufCube, ufTotals } = useDataCubes(
+    manifest?.competencias,
+    selectedUf,
+    effectiveRange,
+    handleCubeError,
+  );
 
+  // Detalhe LOINC×mês de UM município: pequeno o suficiente pra carregar
+  // todos os meses de uma vez e filtrar client-side via previewRange.
   useEffect(() => {
-    if (!selectedUf || !competenciaRange) {
-      setMunicipioData(null);
+    if (!selectedUf || !codigoParam) {
+      setMunicipioDetailData(null);
       return;
     }
-    fetchMunicipioAggregates(selectedUf, competenciaRange).then(
-      (rows) => setMunicipioData(rows),
-      (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    let cancelled = false;
+    fetchMunicipioDetail(selectedUf, codigoParam).then(
+      (rows) => {
+        if (!cancelled) setMunicipioDetailData(rows);
+      },
+      (e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      },
     );
-  }, [selectedUf, competenciaRange]);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUf, codigoParam]);
 
-  // selectedMun é derivado do path + municipioData (precisa do nome
-  // pra exibir no painel). Enquanto os dados não chegam, usa o código
-  // como nome de fallback.
+  // Nome do município pro selectedMun derivado do cubo municipal.
   const selectedMun = useMemo<null | SelectedMunicipio>(() => {
     if (!selectedUf || !codigoParam) return null;
     const key6 = codigoParam.slice(0, 6);
-    const match = municipioData?.find((r) => r.municipioCode.slice(0, 6) === key6);
-    return {
-      codigo: codigoParam,
-      nome: match?.municipioNome ?? codigoParam,
-      ufSigla: selectedUf,
-    };
-  }, [selectedUf, codigoParam, municipioData]);
+    let nome = codigoParam;
+    if (municipioCube) {
+      for (let i = 0; i < municipioCube.bins.length; i += 1) {
+        const code = municipioCube.bins[i] as string;
+        if (code.slice(0, 6) === key6) {
+          nome = municipioCube.binLabels[i] ?? code;
+          break;
+        }
+      }
+    }
+    return { codigo: codigoParam, nome, ufSigla: selectedUf };
+  }, [selectedUf, codigoParam, municipioCube]);
 
   // Município inválido na URL (não existe na UF) → volta pra UF.
   useEffect(() => {
-    if (!selectedUf || !codigoParam || !municipioData) return;
+    if (!selectedUf || !codigoParam || !municipioCube) return;
     const key6 = codigoParam.slice(0, 6);
-    const exists = municipioData.some((r) => r.municipioCode.slice(0, 6) === key6);
+    const exists = municipioCube.bins.some((c) => c.slice(0, 6) === key6);
     if (!exists) {
       navigate(
         { pathname: `/uf/${selectedUf}`, search: searchParams.toString() },
         { replace: true },
       );
     }
-  }, [selectedUf, codigoParam, municipioData, navigate, searchParams]);
+  }, [selectedUf, codigoParam, municipioCube, navigate, searchParams]);
 
   const search = searchParams.toString();
   const searchSuffix = search ? `?${search}` : '';
@@ -166,8 +190,6 @@ export default function Home() {
     [navigate, searchSuffix],
   );
 
-  // Zoom-out via wheel/pinch dispara reset automático: usa replace pra
-  // não encher o histórico com voltas espelhadas do drill-in.
   const handleBackToBrazil = useCallback(() => {
     navigate(`/${searchSuffix}`, { replace: true });
   }, [navigate, searchSuffix]);
@@ -185,51 +207,26 @@ export default function Home() {
     setRefitUfSignal((n) => n + 1);
   }, [navigate, searchSuffix, selectedUf]);
 
-  const ufRows = useMemo<OverviewRow[]>(() => {
-    if (!ufData || !competenciaRange) return [];
-    const { from, to } = competenciaRange;
-    const byUf = new Map<string, { valor: number; volume: number }>();
-    for (const r of ufData) {
-      if (r.competencia < from || r.competencia > to) continue;
-      const prev = byUf.get(r.ufSigla) ?? { valor: 0, volume: 0 };
-      prev.volume += r.volumeExames;
-      prev.valor += r.valorAprovadoBRL;
-      byUf.set(r.ufSigla, prev);
-    }
-    return [...byUf.entries()].map(([sigla, v]) => ({
-      key: sigla,
-      primary: sigla,
-      valor: v.valor,
-      volume: v.volume,
-    }));
-  }, [ufData, competenciaRange]);
+  const ufRows = useMemo<OverviewRow[]>(
+    () =>
+      [...ufTotals.values()].map((v) => ({
+        key: v.bin,
+        primary: v.bin,
+        valor: v.valor,
+        volume: v.volume,
+      })),
+    [ufTotals],
+  );
 
   const muniRows = useMemo<OverviewRow[]>(() => {
-    if (!municipioData || !competenciaRange) return [];
-    const { from, to } = competenciaRange;
-    const byMun = new Map<
-      string,
-      { municipioCode: string; municipioNome: string; valor: number; volume: number }
-    >();
-    for (const r of municipioData) {
-      if (r.competencia < from || r.competencia > to) continue;
-      const prev = byMun.get(r.municipioCode) ?? {
-        municipioCode: r.municipioCode,
-        municipioNome: r.municipioNome,
-        valor: 0,
-        volume: 0,
-      };
-      prev.volume += r.volumeExames;
-      prev.valor += r.valorAprovadoBRL;
-      byMun.set(r.municipioCode, prev);
-    }
-    return [...byMun.values()].map((v) => ({
-      key: v.municipioCode,
-      primary: v.municipioNome,
+    if (!municipioTotals) return [];
+    return [...municipioTotals.values()].map((v) => ({
+      key: v.bin,
+      primary: v.label,
       valor: v.valor,
       volume: v.volume,
     }));
-  }, [municipioData, competenciaRange]);
+  }, [municipioTotals]);
 
   const handleUfRowClick = useCallback(
     (row: OverviewRow) => {
@@ -247,14 +244,14 @@ export default function Home() {
   );
 
   const tablePanel = ((): React.ReactNode => {
-    if (!manifest || !competenciaRange) return null;
-    const subtitle = `SIA-SUS ${formatCompetenciaRange(competenciaRange)}`;
-    if (selectedUf && selectedMun && municipioData) {
+    if (!manifest || !effectiveRange) return null;
+    const subtitle = `SIA-SUS ${formatCompetenciaRange(effectiveRange)}`;
+    if (selectedUf && selectedMun && municipioDetailData) {
       return (
         <MunicipioDetail
           biomarkersByLoinc={biomarkersByLoinc}
-          competenciaRange={competenciaRange}
-          data={municipioData}
+          competenciaRange={effectiveRange}
+          data={municipioDetailData}
           municipio={selectedMun}
           onClose={handleCloseCity}
         />
@@ -264,7 +261,7 @@ export default function Home() {
       return (
         <OverviewTable
           emptyMessage={
-            municipioData === null
+            municipioCube === null
               ? 'Carregando municípios…'
               : 'Nenhum município com exames laboratoriais na faixa selecionada.'
           }
@@ -296,18 +293,17 @@ export default function Home() {
   return (
     <div className="relative flex-1 overflow-hidden">
       <div className="absolute inset-0">
-        {manifest && ufData && competenciaRange !== null ? (
+        {manifest && ufCube && effectiveRange !== null ? (
           <BrasilMap
             availableUFs={manifest.availableUFs}
-            competenciaRange={competenciaRange}
             focusMunCodigo={selectedMun?.codigo ?? null}
-            municipioData={municipioData}
+            municipioTotals={municipioTotals}
             onMunicipioClick={handleMunicipioClick}
             onUfClick={handleUfClick}
             onZoomOutReset={handleBackToBrazil}
             refitUfSignal={refitUfSignal}
             selectedUf={selectedUf}
-            ufData={ufData}
+            ufTotals={ufTotals}
           />
         ) : !error ? (
           <div className="bg-background flex h-full w-full items-center justify-center">
@@ -316,7 +312,7 @@ export default function Home() {
         ) : null}
       </div>
 
-      {manifest && competenciaRange !== null ? (
+      {manifest && effectiveRange !== null ? (
         <aside
           className="border-border bg-card/95 pointer-events-auto absolute z-10 space-y-2 overflow-auto rounded-lg border p-4 shadow-lg backdrop-blur-md"
           style={panelStyle}
@@ -330,7 +326,7 @@ export default function Home() {
               : 'Cada polígono é uma UF, colorida pelo volume de exames aprovados. Clique para detalhar por município.'}
           </p>
           <p className="text-muted-foreground font-margem text-xs leading-snug">
-            SIA-SUS {formatCompetenciaRange(competenciaRange)}. Filtrado para SIGTAP 02.02
+            SIA-SUS {formatCompetenciaRange(effectiveRange)}. Filtrado para SIGTAP 02.02
             (laboratório) e cruzado com LOINC. Dados: {manifest.availableUFs.length}/27 UFs ×{' '}
             {manifest.years.length > 0
               ? `${manifest.years[0]}–${manifest.years[manifest.years.length - 1]}`
@@ -350,7 +346,8 @@ export default function Home() {
         <div className="border-border bg-card/95 pointer-events-auto absolute bottom-6 left-1/2 z-10 w-[min(960px,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border px-4 pt-2 pb-3 shadow-lg backdrop-blur-md">
           <CompetenciaBrush
             competencias={manifest.competencias}
-            onChange={handleRangeChange}
+            onCommit={commitRange}
+            onPreview={setPreviewRange}
             value={competenciaRange}
             volumeByCompetencia={volumeByCompetencia}
           />

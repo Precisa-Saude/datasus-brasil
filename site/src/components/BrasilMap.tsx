@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
 
-import type { CompetenciaRange, MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
+import type { BinTotals } from '@/lib/data-cube';
 import {
   addMapLayers,
   MUN_FILL,
@@ -29,16 +29,15 @@ export interface SelectedMunicipio {
 
 export interface BrasilMapProps {
   availableUFs: readonly string[];
-  competenciaRange: CompetenciaRange;
   /** Quando setado, pede que o mapa centralize/zoom no município (codarea). */
   focusMunCodigo: null | string;
-  /** Agregado municipal da UF ativa no drill-down (ou null). */
-  municipioData: MunicipioAggregate[] | null;
+  /** Totais municipais da UF ativa, agregados sobre a faixa via cubo. */
+  municipioTotals: Map<string, BinTotals> | null;
   /** Contador que, ao mudar, pede fit aos bounds da UF atual. */
   refitUfSignal: number;
   selectedUf: null | string;
-  /** Agregado nacional. */
-  ufData: UfAggregate[];
+  /** Totais nacionais por UF, agregados sobre a faixa via cubo. */
+  ufTotals: Map<string, BinTotals>;
   onMunicipioClick: (m: SelectedMunicipio) => void;
   onUfClick: (ufSigla: string) => void;
   /** Disparado quando o usuário dá zoom out o suficiente no drill-down. */
@@ -217,10 +216,10 @@ export function BrasilMap(props: BrasilMapProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const apply = (): void => pushUfState(map, props.ufData, props.competenciaRange);
+    const apply = (): void => pushUfState(map, props.ufTotals);
     if (loadedRef.current) apply();
     else map.once('load', apply);
-  }, [props.ufData, props.competenciaRange]);
+  }, [props.ufTotals]);
 
   // Transição de UF (entrar/sair do drill-down): toggle layers + fitBounds.
   // Isolado de mudanças de competência/municipioData para preservar o zoom
@@ -259,17 +258,16 @@ export function BrasilMap(props: BrasilMapProps) {
     else map.once('load', run);
   }, [props.focusMunCodigo, props.selectedUf]);
 
-  // Reaplica feature-state municipal quando o dado muda (competência ou
+  // Reaplica feature-state municipal quando os totais mudam (faixa ou
   // município) sem mexer em zoom/centro.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !props.selectedUf || !props.municipioData) return;
-    const muni = props.municipioData;
-    const range = props.competenciaRange;
+    if (!map || !props.selectedUf || !props.municipioTotals) return;
+    const totals = props.municipioTotals;
     const tryApply = (): boolean => {
       const f = map.querySourceFeatures(SOURCE_ID, { sourceLayer: MUN_LAYER });
       if (f.length === 0) return false;
-      pushMunicipioState(map, muni, range);
+      pushMunicipioState(map, totals);
       return true;
     };
     const run = (): void => {
@@ -282,7 +280,7 @@ export function BrasilMap(props: BrasilMapProps) {
     };
     if (loadedRef.current) run();
     else map.once('load', run);
-  }, [props.selectedUf, props.municipioData, props.competenciaRange]);
+  }, [props.selectedUf, props.municipioTotals]);
 
   return (
     <div className="relative h-full w-full">
