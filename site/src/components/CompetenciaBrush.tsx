@@ -29,9 +29,7 @@ interface DragState {
   startIdx: number;
 }
 
-const TRACK_HEIGHT = 14;
-const HISTOGRAM_HEIGHT = 48;
-const GAP = 2;
+const HISTOGRAM_HEIGHT = 72;
 const HANDLE_WIDTH = 8;
 const HANDLE_OVERFLOW = 4;
 const YEAR_LABEL_MIN_PX = 28;
@@ -100,9 +98,8 @@ export function CompetenciaBrush({
 
   const barAreaWidth = Math.max(1, width);
   const barStep = n > 0 ? barAreaWidth / n : 0;
-  const trackTop = 0;
-  const histogramTop = TRACK_HEIGHT + GAP;
-  const svgHeight = TRACK_HEIGHT + GAP + HISTOGRAM_HEIGHT;
+  const histogramTop = 0;
+  const svgHeight = HISTOGRAM_HEIGHT;
 
   const idxToX = useCallback((idx: number) => idx * barStep + barStep / 2, [barStep]);
   const xToIdx = useCallback(
@@ -252,45 +249,9 @@ export function CompetenciaBrush({
           style={{ touchAction: 'none' }}
           width={width}
         >
-          {/* Track de fundo do brush — full-width, edge-to-edge */}
-          <rect
-            fill="var(--secondary)"
-            height={TRACK_HEIGHT}
-            rx={TRACK_HEIGHT / 2}
-            ry={TRACK_HEIGHT / 2}
-            width={barAreaWidth}
-            x={0}
-            y={trackTop}
-          />
-
-          {/* Janela ativa do brush (drag = move) */}
-          <rect
-            fill="var(--primary)"
-            fillOpacity={0.35}
-            height={TRACK_HEIGHT}
-            onPointerDown={(e) => startDrag('middle', e)}
-            rx={TRACK_HEIGHT / 2}
-            ry={TRACK_HEIGHT / 2}
-            stroke="var(--primary)"
-            strokeWidth={1}
-            style={{ cursor: 'grab' }}
-            width={windowW}
-            x={startX}
-            y={trackTop}
-          />
-
-          {/* Sobreposição translúcida da janela em cima do histograma */}
-          <rect
-            fill="var(--primary)"
-            fillOpacity={0.08}
-            height={HISTOGRAM_HEIGHT}
-            pointerEvents="none"
-            width={windowW}
-            x={startX}
-            y={histogramTop}
-          />
-
-          {/* Barras do histograma — abaixo do brush */}
+          {/* Histograma: barras dentro da janela em primary, fora em
+              muted. A janela do brush é a sobreposição translúcida em
+              cima dessa camada. */}
           {months.map((c, i) => {
             const v = volumeByCompetencia.get(c) ?? 0;
             const h = v > 0 ? Math.max(1, (v / maxVolume) * HISTOGRAM_HEIGHT) : 0;
@@ -300,9 +261,10 @@ export function CompetenciaBrush({
             return (
               <rect
                 fill={inside ? 'var(--primary)' : 'var(--muted-foreground)'}
-                fillOpacity={inside ? 0.85 : 0.3}
+                fillOpacity={inside ? 1 : 0.25}
                 height={h}
                 key={c}
+                pointerEvents="none"
                 width={barW}
                 x={x}
                 y={histogramTop + (HISTOGRAM_HEIGHT - h)}
@@ -310,7 +272,23 @@ export function CompetenciaBrush({
             );
           })}
 
-          {/* Handle esquerdo */}
+          {/* Janela ativa do brush — sobrepõe o histograma e captura
+              o drag de mover (cinza translúcido pra não competir com
+              a cor das barras dentro). */}
+          <rect
+            fill="var(--primary)"
+            fillOpacity={0.08}
+            height={HISTOGRAM_HEIGHT}
+            onPointerDown={(e) => startDrag('middle', e)}
+            stroke="var(--primary)"
+            strokeWidth={1}
+            style={{ cursor: 'grab' }}
+            width={windowW}
+            x={startX}
+            y={histogramTop}
+          />
+
+          {/* Handle esquerdo — barra vertical do tamanho do histograma */}
           <rect
             aria-label="Início da faixa"
             aria-valuemax={toIdx - MIN_SPAN}
@@ -318,7 +296,7 @@ export function CompetenciaBrush({
             aria-valuenow={fromIdx}
             aria-valuetext={formatCompetencia(effectiveValue.from)}
             fill="var(--background)"
-            height={TRACK_HEIGHT + HANDLE_OVERFLOW * 2}
+            height={HISTOGRAM_HEIGHT + HANDLE_OVERFLOW * 2}
             onKeyDown={(e) => handleKey('start', e)}
             onPointerDown={(e) => startDrag('start', e)}
             role="slider"
@@ -330,7 +308,7 @@ export function CompetenciaBrush({
             tabIndex={0}
             width={HANDLE_WIDTH}
             x={startX - HANDLE_WIDTH / 2}
-            y={trackTop - HANDLE_OVERFLOW}
+            y={histogramTop - HANDLE_OVERFLOW}
           />
           {/* Handle direito */}
           <rect
@@ -340,7 +318,7 @@ export function CompetenciaBrush({
             aria-valuenow={toIdx}
             aria-valuetext={formatCompetencia(effectiveValue.to)}
             fill="var(--background)"
-            height={TRACK_HEIGHT + HANDLE_OVERFLOW * 2}
+            height={HISTOGRAM_HEIGHT + HANDLE_OVERFLOW * 2}
             onKeyDown={(e) => handleKey('end', e)}
             onPointerDown={(e) => startDrag('end', e)}
             role="slider"
@@ -352,7 +330,7 @@ export function CompetenciaBrush({
             tabIndex={0}
             width={HANDLE_WIDTH}
             x={endX - HANDLE_WIDTH / 2}
-            y={trackTop - HANDLE_OVERFLOW}
+            y={histogramTop - HANDLE_OVERFLOW}
           />
         </svg>
 
