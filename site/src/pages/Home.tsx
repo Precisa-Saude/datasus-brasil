@@ -71,7 +71,7 @@ export default function Home() {
     width: 'calc(var(--col-w) * 3 + 2rem)',
   } as const;
   const detailStyle = {
-    bottom: '1.5rem',
+    height: 'calc((100vh - 7rem) / 2)',
     right: 'max((100vw - var(--grid-max-w)) / 2, 1rem)',
     top: PANEL_TOP,
     width: 'calc(var(--col-w) * 4 + 3rem)',
