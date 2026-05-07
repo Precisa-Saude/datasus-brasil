@@ -20,7 +20,9 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={vi.fn()} onPreview={vi.fn()} onReset={vi.fn()}
+        onCommit={vi.fn()}
+        onPreview={vi.fn()}
+        onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-12' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -33,7 +35,9 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={vi.fn()} onPreview={vi.fn()} onReset={vi.fn()}
+        onCommit={vi.fn()}
+        onPreview={vi.fn()}
+        onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-12' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -46,7 +50,9 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={vi.fn()} onPreview={vi.fn()} onReset={vi.fn()}
+        onCommit={vi.fn()}
+        onPreview={vi.fn()}
+        onReset={vi.fn()}
         value={{ from: '2023-06', to: '2024-06' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -64,7 +70,9 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={onChange} onPreview={vi.fn()} onReset={vi.fn()}
+        onCommit={onChange}
+        onPreview={vi.fn()}
+        onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-01' }}
         volumeByCompetencia={makeVolume()}
       />,
@@ -79,7 +87,9 @@ describe('CompetenciaBrush', () => {
     render(
       <CompetenciaBrush
         competencias={COMPETENCIAS}
-        onCommit={onChange} onPreview={vi.fn()} onReset={vi.fn()}
+        onCommit={onChange}
+        onPreview={vi.fn()}
+        onReset={vi.fn()}
         value={{ from: '2023-01', to: '2024-06' }}
         volumeByCompetencia={makeVolume()}
       />,
