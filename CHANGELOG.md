@@ -1,3 +1,33 @@
+## [1.4.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.3.2...v1.4.0) (2026-05-07)
+
+### Features
+
+* **site:** auto-refresh do pipeline + indicador de freshness na UI ([a8856ff](https://github.com/Precisa-Saude/datasus-viz/commit/a8856ff6b9fc4a7404e50ab18b08672399e62010))
+* **site:** brush + histograma de competências (Falcon-style) ([#35](https://github.com/Precisa-Saude/datasus-viz/issues/35)) ([1a8e969](https://github.com/Precisa-Saude/datasus-viz/commit/1a8e969183b8d3c300e7901770706d3b76bd632f))
+* **site:** página /tendências com séries temporais e comparação multi-UF/exame ([#28](https://github.com/Precisa-Saude/datasus-viz/issues/28)) ([66ea734](https://github.com/Precisa-Saude/datasus-viz/commit/66ea734f527c605ea1472a167434a79380610444))
+* **site:** roteamento por path no mapa (drill-down ↔ URL) ([#31](https://github.com/Precisa-Saude/datasus-viz/issues/31)) ([1a4886f](https://github.com/Precisa-Saude/datasus-viz/commit/1a4886f2f462eff8a8ce715d735ae5cae5d40aed))
+
+### Bug Fixes
+
+* **ci:** desativar guard de packages/** no release ([#36](https://github.com/Precisa-Saude/datasus-viz/issues/36)) ([5866ce8](https://github.com/Precisa-Saude/datasus-viz/commit/5866ce848c2bfbb8c38d9468d578c11164d66415)), closes [#22](https://github.com/Precisa-Saude/datasus-viz/issues/22)
+* **ci:** re-issue STS credentials antes do Upload no refresh.yml ([#33](https://github.com/Precisa-Saude/datasus-viz/issues/33)) ([7759a73](https://github.com/Precisa-Saude/datasus-viz/commit/7759a7361e6c5c368cf29a16119c2cae4e712658))
+* **site:** carregar DuckDB-wasm de jsDelivr (desbloquear deploy CF Pages) ([#23](https://github.com/Precisa-Saude/datasus-viz/issues/23)) ([083916a](https://github.com/Precisa-Saude/datasus-viz/commit/083916a98f6a611cc9e9396615ed4ff403283f85))
+* **site:** drilldown no clique de UF + ajustes de layout do mapa ([#26](https://github.com/Precisa-Saude/datasus-viz/issues/26)) ([37b3617](https://github.com/Precisa-Saude/datasus-viz/commit/37b36171d295f7864efe36b4d574a4622bb36847))
+* **site:** pré-instala httpfs uma vez pra evitar SIGSEGV no aggregate ([#34](https://github.com/Precisa-Saude/datasus-viz/issues/34)) ([81fefde](https://github.com/Precisa-Saude/datasus-viz/commit/81fefde2c26759b5802cf6da455eb2da8988bfc4)), closes [#30](https://github.com/Precisa-Saude/datasus-viz/issues/30) [#17](https://github.com/Precisa-Saude/datasus-viz/issues/17)
+
+### Performance
+
+* **site:** paraleliza meses no aggregate-sia-parquet ([#30](https://github.com/Precisa-Saude/datasus-viz/issues/30)) ([b68f354](https://github.com/Precisa-Saude/datasus-viz/commit/b68f35441b6b77a6310234c566677049f3f206a4)), closes [#29](https://github.com/Precisa-Saude/datasus-viz/issues/29)
+
+### Documentation
+
+* alinhar README com std do ecossistema (badges + separadores + URL prod) ([#25](https://github.com/Precisa-Saude/datasus-viz/issues/25)) ([4575801](https://github.com/Precisa-Saude/datasus-viz/commit/4575801234110e9a313c76d7aa043b6517ed0e44))
+
+### CI/CD
+
+* bump pnpm/action-setup para v5 (Node.js 24) ([#24](https://github.com/Precisa-Saude/datasus-viz/issues/24)) ([6409e80](https://github.com/Precisa-Saude/datasus-viz/commit/6409e806f6039cc23b385d65a14354c7a1d970a2))
+* bump refresh timeout-minutes 180 → 480 ([#29](https://github.com/Precisa-Saude/datasus-viz/issues/29)) ([599c83c](https://github.com/Precisa-Saude/datasus-viz/commit/599c83cac2f9be65ac4a2dc71fe8d5f3f5c6ac45))
+
 ## [1.3.2](https://github.com/Precisa-Saude/datasus-viz/compare/v1.3.1...v1.3.2) (2026-04-24)
 
 ### Bug Fixes
