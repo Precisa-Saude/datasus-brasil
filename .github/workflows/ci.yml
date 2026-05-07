@@ -57,6 +57,14 @@ jobs:
     needs: checks
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/_release.yml
+    with:
+      # O guard de paths em _release.yml só inspeciona `packages/**` e
+      # `package.json`. Depois que o site saiu de `packages/site` pra
+      # `site/` (PR #22, v1.3.2), todos os pushes viraram site-only e
+      # passaram a pular o release. semantic-release já decide sozinho
+      # se os commits merecem bump (docs/chore não bumpam), então o
+      # guard de paths virou redundante e bloqueante.
+      require_package_changes: false
     secrets: inherit
 
   # ── Publish to npm (when release created a new version) ────────
