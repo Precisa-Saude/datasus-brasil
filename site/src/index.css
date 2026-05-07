@@ -47,62 +47,6 @@
   }
 }
 
-/* Slider range estilizado no padrão platform (track h-1, thumb h-5 w-5 */
-/* border-2 border-primary bg-background). Implementado via input[type=range] */
-/* pra evitar adicionar @radix-ui/react-slider. */
-.competencia-slider {
-  cursor: pointer;
-}
-.competencia-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 9999px;
-  background: linear-gradient(
-    to right,
-    var(--primary) 0%,
-    var(--primary) var(--pct, 0%),
-    var(--secondary) var(--pct, 0%),
-    var(--secondary) 100%
-  );
-}
-.competencia-slider::-moz-range-track {
-  height: 4px;
-  border-radius: 9999px;
-  background: var(--secondary);
-}
-.competencia-slider::-moz-range-progress {
-  height: 4px;
-  border-radius: 9999px;
-  background: var(--primary);
-}
-.competencia-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  margin-top: -8px;
-  border-radius: 9999px;
-  background: var(--background);
-  border: 2px solid var(--primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  transition: transform 120ms ease;
-}
-.competencia-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.08);
-}
-.competencia-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  border-radius: 9999px;
-  background: var(--background);
-  border: 2px solid var(--primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-.competencia-slider:focus-visible {
-  outline: none;
-}
-.competencia-slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 40%, transparent);
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

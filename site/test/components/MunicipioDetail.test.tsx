@@ -63,7 +63,7 @@ function renderDetail(overrides: Partial<Parameters<typeof MunicipioDetail>[0]> 
   return render(
     <MunicipioDetail
       biomarkersByLoinc={BIOMARKERS_BY_LOINC}
-      competencia="2024-01"
+      competenciaRange={{ from: '2024-01', to: '2024-01' }}
       data={makeData()}
       municipio={MUNICIPIO}
       onClose={vi.fn()}
@@ -119,8 +119,8 @@ describe('MunicipioDetail', () => {
     expect(rows[0]?.textContent).toContain('Colesterol HDL');
   });
 
-  it('mostra fallback quando não há dados para a competência', () => {
-    renderDetail({ competencia: '2099-12' });
+  it('mostra fallback quando não há dados para a faixa', () => {
+    renderDetail({ competenciaRange: { from: '2099-01', to: '2099-12' } });
     expect(screen.getByText(/Nenhum exame laboratorial registrado/i)).toBeDefined();
   });
 

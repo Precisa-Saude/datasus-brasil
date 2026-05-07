@@ -1,15 +1,14 @@
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import type { MunicipioAggregate } from '@/lib/aggregates';
+import type { CompetenciaRange, MunicipioAggregate } from '@/lib/aggregates';
+import { formatCompetenciaRange } from '@/lib/format';
 import { formatBRL, formatInt } from '@/lib/tooltip';
 import { cn } from '@/lib/utils';
 
-import { formatCompetencia } from './CompetenciaSlider';
-
 export interface MunicipioDetailProps {
   biomarkersByLoinc: Record<string, string>;
-  competencia: string;
+  competenciaRange: CompetenciaRange;
   data: MunicipioAggregate[];
   municipio: { codigo: string; nome: string; ufSigla: string };
   onClose: () => void;
@@ -43,15 +42,25 @@ export function MunicipioDetail(props: MunicipioDetailProps) {
 
   const rows = useMemo<Row[]>(() => {
     const key6 = props.municipio.codigo.slice(0, 6);
-    const base = props.data
-      .filter((r) => r.competencia === props.competencia && r.municipioCode.slice(0, 6) === key6)
-      .filter((r) => r.volumeExames > 0)
-      .map((r) => ({
+    const { from, to } = props.competenciaRange;
+    // Soma volume/valor por LOINC ao longo da faixa selecionada — uma
+    // linha do agregado é (município, LOINC, competência), então
+    // múltiplos meses precisam virar uma linha por LOINC na tabela.
+    const byLoinc = new Map<string, Row>();
+    for (const r of props.data) {
+      if (r.municipioCode.slice(0, 6) !== key6) continue;
+      if (r.competencia < from || r.competencia > to) continue;
+      const prev = byLoinc.get(r.loinc) ?? {
         display: props.biomarkersByLoinc[r.loinc] ?? r.loinc,
         loinc: r.loinc,
-        valor: r.valorAprovadoBRL,
-        volume: r.volumeExames,
-      }));
+        valor: 0,
+        volume: 0,
+      };
+      prev.valor += r.valorAprovadoBRL;
+      prev.volume += r.volumeExames;
+      byLoinc.set(r.loinc, prev);
+    }
+    const base = [...byLoinc.values()].filter((r) => r.volume > 0);
     const dir = sortDir === 'asc' ? 1 : -1;
     return base.sort((a, b) => {
       if (sortKey === 'display') return a.display.localeCompare(b.display) * dir;
@@ -59,7 +68,7 @@ export function MunicipioDetail(props: MunicipioDetailProps) {
     });
   }, [
     props.data,
-    props.competencia,
+    props.competenciaRange,
     props.municipio.codigo,
     props.biomarkersByLoinc,
     sortKey,
@@ -89,7 +98,7 @@ export function MunicipioDetail(props: MunicipioDetailProps) {
             </span>
           </h2>
           <p className="text-muted-foreground mt-1 font-margem text-xs">
-            Exames laboratoriais em {formatCompetencia(props.competencia)} ·{' '}
+            Exames laboratoriais em {formatCompetenciaRange(props.competenciaRange)} ·{' '}
             {formatInt(totalVolume)} total · {formatBRL(totalValor)}
           </p>
         </div>
@@ -106,7 +115,7 @@ export function MunicipioDetail(props: MunicipioDetailProps) {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {rows.length === 0 ? (
           <div className="text-muted-foreground p-4 font-margem text-sm">
-            Nenhum exame laboratorial registrado neste município para a competência selecionada.
+            Nenhum exame laboratorial registrado neste município para a faixa selecionada.
           </div>
         ) : (
           <table className="w-full font-margem text-xs">

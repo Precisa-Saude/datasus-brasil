@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibregl from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
 
-import type { MunicipioAggregate, UfAggregate } from '@/lib/aggregates';
+import type { BinTotals } from '@/lib/data-cube';
 import {
   addMapLayers,
   MUN_FILL,
@@ -29,16 +29,15 @@ export interface SelectedMunicipio {
 
 export interface BrasilMapProps {
   availableUFs: readonly string[];
-  competencia: string;
   /** Quando setado, pede que o mapa centralize/zoom no município (codarea). */
   focusMunCodigo: null | string;
-  /** Agregado municipal da UF ativa no drill-down (ou null). */
-  municipioData: MunicipioAggregate[] | null;
+  /** Totais municipais da UF ativa, agregados sobre a faixa via cubo. */
+  municipioTotals: Map<string, BinTotals> | null;
   /** Contador que, ao mudar, pede fit aos bounds da UF atual. */
   refitUfSignal: number;
   selectedUf: null | string;
-  /** Agregado nacional. */
-  ufData: UfAggregate[];
+  /** Totais nacionais por UF, agregados sobre a faixa via cubo. */
+  ufTotals: Map<string, BinTotals>;
   onMunicipioClick: (m: SelectedMunicipio) => void;
   onUfClick: (ufSigla: string) => void;
   /** Disparado quando o usuário dá zoom out o suficiente no drill-down. */
@@ -66,7 +65,7 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       id: sigla,
       source: SOURCE_ID,
       sourceLayer: UF_LAYER,
-    }) as { volume?: number } | null;
+    }) as { rank?: number; rankTotal?: number; volume?: number } | null;
     const hasData = latest.availableUFs.includes(sigla);
     map.getCanvas().style.cursor = hasData ? 'pointer' : 'default';
     popup
@@ -74,6 +73,8 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       .setHTML(
         buildOverviewTooltipHtml({
           name: String(feature.properties?.name ?? sigla),
+          rank: state?.rank,
+          rankTotal: state?.rankTotal,
           subtitle: `${sigla}${hasData ? ' — clique para detalhar' : ' — sem dados'}`,
           totalLabel: 'exames laboratoriais',
           totalValue: Number(state?.volume ?? 0),
@@ -113,7 +114,12 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       id: featId,
       source: SOURCE_ID,
       sourceLayer: MUN_LAYER,
-    }) as { municipio?: string; volume?: number } | null;
+    }) as {
+      municipio?: string;
+      rank?: number;
+      rankTotal?: number;
+      volume?: number;
+    } | null;
     const name = state?.municipio ?? String(feature.properties?.nome ?? `código ${codareaStr}`);
     const hasData = Number(state?.volume ?? 0) > 0;
     map.getCanvas().style.cursor = hasData ? 'pointer' : 'default';
@@ -122,6 +128,8 @@ function attachHandlers(map: maplibregl.Map, refs: LayerRefs): void {
       .setHTML(
         buildOverviewTooltipHtml({
           name: `${name} — ${featureUf}`,
+          rank: state?.rank,
+          rankTotal: state?.rankTotal,
           subtitle: hasData
             ? 'Clique para ver todos os exames'
             : 'Sem exames faturados nesta competência',
@@ -217,10 +225,10 @@ export function BrasilMap(props: BrasilMapProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const apply = (): void => pushUfState(map, props.ufData, props.competencia);
+    const apply = (): void => pushUfState(map, props.ufTotals);
     if (loadedRef.current) apply();
     else map.once('load', apply);
-  }, [props.ufData, props.competencia]);
+  }, [props.ufTotals]);
 
   // Transição de UF (entrar/sair do drill-down): toggle layers + fitBounds.
   // Isolado de mudanças de competência/municipioData para preservar o zoom
@@ -259,17 +267,16 @@ export function BrasilMap(props: BrasilMapProps) {
     else map.once('load', run);
   }, [props.focusMunCodigo, props.selectedUf]);
 
-  // Reaplica feature-state municipal quando o dado muda (competência ou
+  // Reaplica feature-state municipal quando os totais mudam (faixa ou
   // município) sem mexer em zoom/centro.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !props.selectedUf || !props.municipioData) return;
-    const muni = props.municipioData;
-    const comp = props.competencia;
+    if (!map || !props.selectedUf || !props.municipioTotals) return;
+    const totals = props.municipioTotals;
     const tryApply = (): boolean => {
       const f = map.querySourceFeatures(SOURCE_ID, { sourceLayer: MUN_LAYER });
       if (f.length === 0) return false;
-      pushMunicipioState(map, muni, comp);
+      pushMunicipioState(map, totals);
       return true;
     };
     const run = (): void => {
@@ -282,7 +289,7 @@ export function BrasilMap(props: BrasilMapProps) {
     };
     if (loadedRef.current) run();
     else map.once('load', run);
-  }, [props.selectedUf, props.municipioData, props.competencia]);
+  }, [props.selectedUf, props.municipioTotals]);
 
   return (
     <div className="relative h-full w-full">
