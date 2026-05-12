@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/duckdb', () => ({
   queryAll: vi.fn(async () => []),
+  queryAllInterned: vi.fn(async () => []),
+  resetDuckDB: vi.fn(async () => undefined),
 }));
 
-import { queryAll } from '@/lib/duckdb';
+import { queryAll, queryAllInterned, resetDuckDB } from '@/lib/duckdb';
 import {
   fetchAnomalyDataset,
+  fetchAnomalyDatasetMulti,
   fetchCnesBreakdown,
   fetchMunicipioAggregates,
   fetchTopLoincsByVolume,
@@ -18,10 +21,16 @@ import {
 } from '@/lib/queries';
 
 const queryAllMock = vi.mocked(queryAll);
+const queryAllInternedMock = vi.mocked(queryAllInterned);
+const resetDuckDBMock = vi.mocked(resetDuckDB);
 
 beforeEach(() => {
   queryAllMock.mockClear();
   queryAllMock.mockResolvedValue([]);
+  queryAllInternedMock.mockClear();
+  queryAllInternedMock.mockResolvedValue([]);
+  resetDuckDBMock.mockClear();
+  resetDuckDBMock.mockResolvedValue(undefined);
 });
 
 describe('fetchUfAggregates', () => {
@@ -183,9 +192,17 @@ describe('fetchMunicipioAggregates', () => {
 describe('fetchAnomalyDataset', () => {
   it('lê do parquet consolidado da UF sem filtros quando opcionais omitidos', async () => {
     await fetchAnomalyDataset({ ufSigla: 'SP' });
-    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    const sql = queryAllInternedMock.mock.calls[0]?.[0] ?? '';
     expect(sql).toContain('uf=SP/part.parquet');
     expect(sql).not.toContain('WHERE');
+  });
+
+  it('intern em colunas de alta repetição', async () => {
+    await fetchAnomalyDataset({ ufSigla: 'SP' });
+    const cols = queryAllInternedMock.mock.calls[0]?.[1] ?? [];
+    expect(cols).toEqual(
+      expect.arrayContaining(['competencia', 'loinc', 'ufSigla', 'municipioNome']),
+    );
   });
 
   it('aplica pushdown por LOINC e faixa de competências quando fornecidos', async () => {
@@ -194,7 +211,7 @@ describe('fetchAnomalyDataset', () => {
       range: { from: '2023-01', to: '2024-12' },
       ufSigla: 'SP',
     });
-    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    const sql = queryAllInternedMock.mock.calls[0]?.[0] ?? '';
     expect(sql).toContain("loinc = '2160-0'");
     expect(sql).toContain("competencia BETWEEN '2023-01' AND '2024-12'");
   });
@@ -207,7 +224,52 @@ describe('fetchAnomalyDataset', () => {
     await expect(
       fetchAnomalyDataset({ range: { from: "2024'01", to: '2024-12' }, ufSigla: 'SP' }),
     ).rejects.toThrow(/competencia/);
-    expect(queryAllMock).not.toHaveBeenCalled();
+    expect(queryAllInternedMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchAnomalyDatasetMulti', () => {
+  it('devolve [] sem rodar nenhuma query quando ufSiglas é vazio', async () => {
+    const out = await fetchAnomalyDatasetMulti({ ufSiglas: [] });
+    expect(out).toEqual([]);
+    expect(queryAllInternedMock).not.toHaveBeenCalled();
+    expect(resetDuckDBMock).not.toHaveBeenCalled();
+  });
+
+  it('dispara uma query por UF, concatena resultados e reseta o DuckDB no final', async () => {
+    queryAllInternedMock.mockImplementation(async (sql) => {
+      const match = /uf=([A-Z]{2})\//.exec(sql);
+      const uf = match ? match[1] : 'XX';
+      return [
+        {
+          competencia: '2024-01',
+          loinc: '2085-9',
+          municipioCode: `${uf}0001`,
+          municipioNome: `Mun-${uf}`,
+          ufSigla: uf,
+          volumeExames: 1,
+          valorAprovadoBRL: 1,
+        },
+      ];
+    });
+    const rows = await fetchAnomalyDatasetMulti({ ufSiglas: ['SP', 'RJ', 'MG'] });
+    expect(queryAllInternedMock).toHaveBeenCalledTimes(3);
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.ufSigla).sort()).toEqual(['MG', 'RJ', 'SP']);
+    expect(resetDuckDBMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('propaga loinc para cada UF', async () => {
+    await fetchAnomalyDatasetMulti({ loinc: '2085-9', ufSiglas: ['SP', 'RJ'] });
+    const sqls = queryAllInternedMock.mock.calls.map((c) => c[0] ?? '');
+    expect(sqls).toHaveLength(2);
+    for (const sql of sqls) expect(sql).toContain("loinc = '2085-9'");
+  });
+
+  it('reseta o DuckDB mesmo quando uma UF falha (limpeza em finally)', async () => {
+    queryAllInternedMock.mockRejectedValueOnce(new Error('http 503'));
+    await expect(fetchAnomalyDatasetMulti({ ufSiglas: ['SP'] })).rejects.toThrow(/http 503/);
+    expect(resetDuckDBMock).toHaveBeenCalledTimes(1);
   });
 });
 

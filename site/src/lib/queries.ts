@@ -1,6 +1,6 @@
 import type { CompetenciaRange } from './aggregates';
 import { rawSiaPaUrl, UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
-import { queryAll } from './duckdb';
+import { queryAll, queryAllInterned, resetDuckDB } from './duckdb';
 import sigtapCatalog from './loinc-sigtap-catalog.generated.json';
 
 /**
@@ -245,7 +245,13 @@ export async function fetchAnomalyDataset(params: {
     );
   }
   const where = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-  return queryAll<MunicipioAggregateRow>(`
+  // O dataset de anomalias é o maior consumidor de heap do site —
+  // múltiplos milhões de linhas com strings altamente repetidas
+  // (UF, competência, LOINC, nome de município se em modo nacional).
+  // `queryAllInterned` compartilha as instâncias dessas strings e
+  // corta heap em ~30-50% sem mudar o shape do retorno.
+  return queryAllInterned<MunicipioAggregateRow>(
+    `
     SELECT
       competencia,
       loinc,
@@ -256,7 +262,46 @@ export async function fetchAnomalyDataset(params: {
       CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
     FROM read_parquet('${ufPartitionUrl(ufSigla)}')
     ${where}
-  `);
+  `,
+    ['competencia', 'loinc', 'ufSigla', 'municipioNome'],
+  );
+}
+
+/**
+ * Versão multi-UF do `fetchAnomalyDataset` para o modo "Todos os
+ * Estados" do explorador. Cada UF lê um parquet diferente — não dá
+ * pra unificar em um único `read_parquet(['url1','url2',...])` porque
+ * cada parquet não carrega a coluna `ufSigla` nele (a sigla é
+ * particionada via path Hive); precisamos taggear UF a UF no
+ * SELECT. Roda em paralelo por UF e concatena.
+ *
+ * Custo: ~27 HTTP Range Requests + bytes de cada parquet UF. O DuckDB
+ * WASM mantém o pool de conexões interno; CloudFront cuida do cache.
+ * Em redes razoáveis, primeira chamada termina em 10-30s; reabrir o
+ * modo "todos" reaproveita cache de browser/CDN.
+ *
+ * Após a materialização, reseta o DuckDB-WASM (`resetDuckDB`) pra
+ * devolver ao sistema a memória dos parquets descomprimidos que o
+ * pool interno mantinha — o detector roda 100% em JS sobre as linhas
+ * já em heap, então o DB não precisa ficar de pé. Próxima query
+ * reinicializa em ~100ms (bundle WASM já cacheado pelo browser).
+ */
+export async function fetchAnomalyDatasetMulti(params: {
+  loinc?: string;
+  range?: CompetenciaRange;
+  ufSiglas: readonly string[];
+}): Promise<MunicipioAggregateRow[]> {
+  const { loinc, range, ufSiglas } = params;
+  if (ufSiglas.length === 0) return [];
+  try {
+    const results = await Promise.all(
+      ufSiglas.map((ufSigla) => fetchAnomalyDataset({ loinc, range, ufSigla })),
+    );
+    return results.flat();
+  } finally {
+    // Reseta mesmo em caso de erro — não vale manter o pool inflado.
+    void resetDuckDB();
+  }
 }
 
 export interface CnesBreakdownRow {

@@ -18,7 +18,7 @@ import { MANIFEST_URL } from '@/lib/data-source';
 import type { PopulationDataset } from '@/lib/population';
 import { loadPopulation } from '@/lib/population';
 import type { MunicipioAggregateRow } from '@/lib/queries';
-import { fetchAnomalyDataset } from '@/lib/queries';
+import { fetchAnomalyDataset, fetchAnomalyDatasetMulti } from '@/lib/queries';
 
 /**
  * Página exploratória de "datapoints fora do padrão" nos agregados
@@ -33,6 +33,7 @@ import { fetchAnomalyDataset } from '@/lib/queries';
  */
 const ALL_LOINCS = '__ALL__';
 const ALL_MUNICIPIOS = '__ALL__';
+const ALL_UFS = '__ALL__';
 
 type DetectorTabKey = 'concentration' | 'per-capita' | 'price-ratio' | 'spike';
 
@@ -90,7 +91,7 @@ function formatValueForKind(kind: AnomalyKind): (v: number) => string {
 export default function Explore() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [manifest, setManifest] = useState<AggregateIndex | null>(null);
-  const [ufSigla, setUfSigla] = useState<string>(searchParams.get('uf') ?? 'SP');
+  const [ufSigla, setUfSigla] = useState<string>(searchParams.get('uf') ?? ALL_UFS);
   const [loinc, setLoinc] = useState<string>(searchParams.get('loinc') ?? ALL_LOINCS);
   const [municipioCode, setMunicipioCode] = useState<string>(
     searchParams.get('mun') ?? ALL_MUNICIPIOS,
@@ -109,10 +110,8 @@ export default function Explore() {
     loadManifest().then(
       (m) => {
         setManifest(m);
-        if (!searchParams.get('uf')) {
-          const initial = m.availableUFs.includes('SP') ? 'SP' : (m.availableUFs[0] ?? 'SP');
-          setUfSigla(initial);
-        }
+        // Default = ALL_UFS; mantém só se o usuário tiver fixado outra
+        // UF via search param.
       },
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
@@ -127,10 +126,12 @@ export default function Explore() {
   }, []);
 
   // Sincroniza estado de volta na URL — permite compartilhar oddity.
+  // Omitimos `uf` quando o modo é "Todos os Estados" (default), pra
+  // manter a URL limpa no caso comum.
   useEffect(() => {
     if (!manifest) return;
     const next = new URLSearchParams();
-    next.set('uf', ufSigla);
+    if (ufSigla !== ALL_UFS) next.set('uf', ufSigla);
     if (loinc !== ALL_LOINCS) next.set('loinc', loinc);
     if (municipioCode !== ALL_MUNICIPIOS) next.set('mun', municipioCode);
     if (detector !== 'spike') next.set('det', detector);
@@ -140,15 +141,20 @@ export default function Explore() {
   // Fetch dataset quando UF ou LOINC mudam. Município é filtro
   // client-side sobre os mesmos `rows` (já chegam por município),
   // então não dispara nova GET S3.
+  // Para UF = "Todos os Estados", roda fetch em paralelo pra todas as
+  // UFs do manifesto e concatena — custa mais bytes, mas o detector
+  // de anomalias precisa ver a base nacional.
   useEffect(() => {
     if (!manifest) return;
     setLoading(true);
     setError(null);
     setRows(null);
-    fetchAnomalyDataset({
-      loinc: loinc === ALL_LOINCS ? undefined : loinc,
-      ufSigla,
-    }).then(
+    const safeLoinc = loinc === ALL_LOINCS ? undefined : loinc;
+    const promise =
+      ufSigla === ALL_UFS
+        ? fetchAnomalyDatasetMulti({ loinc: safeLoinc, ufSiglas: manifest.availableUFs })
+        : fetchAnomalyDataset({ loinc: safeLoinc, ufSigla });
+    promise.then(
       (data) => {
         setRows(data);
         setLoading(false);
@@ -166,15 +172,18 @@ export default function Explore() {
     setMunicipioCode(ALL_MUNICIPIOS);
   }, [ufSigla]);
 
-  // Lista distinta de municípios derivada dos rows carregados (UF + LOINC).
+  // Lista distinta de municípios derivada dos rows carregados.
+  // No modo "Todos os Estados", carrega UF junto pra desambiguar
+  // municípios com nome igual em UFs diferentes (Bom Jesus, etc.).
   // Ordena alfabeticamente pela nomenclatura IBGE.
-  const municipios = useMemo<{ code: string; nome: string }[]>(() => {
+  const municipios = useMemo<{ code: string; nome: string; ufSigla: string }[]>(() => {
     if (!rows) return [];
-    const seen = new Map<string, string>();
+    const seen = new Map<string, { nome: string; ufSigla: string }>();
     for (const r of rows) {
-      if (!seen.has(r.municipioCode)) seen.set(r.municipioCode, r.municipioNome);
+      if (!seen.has(r.municipioCode))
+        seen.set(r.municipioCode, { nome: r.municipioNome, ufSigla: r.ufSigla });
     }
-    return Array.from(seen, ([code, nome]) => ({ code, nome })).sort((a, b) =>
+    return Array.from(seen, ([code, info]) => ({ code, ...info })).sort((a, b) =>
       a.nome.localeCompare(b.nome, 'pt-BR'),
     );
   }, [rows]);
@@ -240,16 +249,27 @@ export default function Explore() {
   );
 
   const ufItems = useMemo<ComboboxItem[]>(
-    () => (manifest ? manifest.availableUFs.map((uf) => ({ label: uf, value: uf })) : []),
+    () =>
+      manifest
+        ? [
+            { label: 'Todos os Estados', value: ALL_UFS },
+            ...manifest.availableUFs.map((uf) => ({ label: uf, value: uf })),
+          ]
+        : [],
     [manifest],
   );
 
   const municipioItems = useMemo<ComboboxItem[]>(
     () => [
       { label: 'Todos os municípios', value: ALL_MUNICIPIOS },
-      ...municipios.map((m) => ({ label: m.nome, value: m.code })),
+      ...municipios.map((m) => ({
+        // No modo "Todos os Estados" o label inclui a sigla pra
+        // desambiguar homônimos entre UFs (Bom Jesus, Bonito, etc.).
+        label: ufSigla === ALL_UFS ? `${m.nome} — ${m.ufSigla}` : m.nome,
+        value: m.code,
+      })),
     ],
-    [municipios],
+    [municipios, ufSigla],
   );
 
   const loincItems = useMemo<ComboboxItem[]>(
