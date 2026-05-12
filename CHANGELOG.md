@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.5.0...v1.6.0) (2026-05-12)
+
+### Features
+
+* **site:** detalhamento por CNES + reagregação de partições revistas ([#38](https://github.com/Precisa-Saude/datasus-viz/issues/38)) ([cb455a7](https://github.com/Precisa-Saude/datasus-viz/commit/cb455a70cbe40cd2e048a3a9d4018a3a9fcb4c3c))
+
 ## [1.5.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.4.0...v1.5.0) (2026-05-12)
 
 ### Features
