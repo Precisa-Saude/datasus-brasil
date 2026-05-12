@@ -92,6 +92,29 @@ Todas as flags e formatos em [`packages/cli/README.md`](packages/cli/README.md).
 
 ---
 
+## Fontes de dados
+
+- **DATASUS — SIA-SUS / Produção Ambulatorial (SIA-PA)**, microdados via
+  FTP oficial. Pipeline em `@precisa-saude/datasus-sdk` →
+  `datasus-parquet` → bucket S3 público consumido pelo site.
+- **IBGE — Estimativas da População dos Municípios**, série histórica.
+  SIDRA agregado 6579, variável 9324
+  ([publicação](https://www.ibge.gov.br/estatisticas/sociais/populacao/9103-estimativas-de-populacao.html)).
+  Consumido pela página `/explore` (detector per-capita + tooltip) via
+  `site/public/data/populacao.json`. Atualização anual em duas etapas:
+
+  ```bash
+  pnpm install                                    # Node 22 + dependências
+  pnpm -F @datasus-viz/site exec tsx \
+    scripts/ingest-population.ts                  # acesso à SIDRA do IBGE
+  ```
+
+  O script normaliza códigos IBGE de 7 dígitos pros 6 dígitos usados
+  nos parquets DATASUS, faz retry com backoff em falhas transitórias
+  da SIDRA, e sobrescreve `populacao.json` idempotentemente. Falha
+  com `exit 1` se a SIDRA estiver indisponível ou se o filesystem
+  rejeitar a escrita.
+
 ## Cache de microdata
 
 A CLI e o site (via SDK) reutilizam cache local de arquivos DBC:

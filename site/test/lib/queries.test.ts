@@ -6,6 +6,7 @@ vi.mock('@/lib/duckdb', () => ({
 
 import { queryAll } from '@/lib/duckdb';
 import {
+  fetchAnomalyDataset,
   fetchMunicipioAggregates,
   fetchTopLoincsByVolume,
   fetchTopUfsByVolume,
@@ -172,6 +173,37 @@ describe('fetchMunicipioAggregates', () => {
     ).rejects.toThrow(/ufSigla/);
     await expect(
       fetchMunicipioAggregates('SP', { from: "2024'01", to: '2024-02' }),
+    ).rejects.toThrow(/competencia/);
+    expect(queryAllMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchAnomalyDataset', () => {
+  it('lê do parquet consolidado da UF sem filtros quando opcionais omitidos', async () => {
+    await fetchAnomalyDataset({ ufSigla: 'SP' });
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    expect(sql).toContain('uf=SP/part.parquet');
+    expect(sql).not.toContain('WHERE');
+  });
+
+  it('aplica pushdown por LOINC e faixa de competências quando fornecidos', async () => {
+    await fetchAnomalyDataset({
+      loinc: '2160-0',
+      range: { from: '2023-01', to: '2024-12' },
+      ufSigla: 'SP',
+    });
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    expect(sql).toContain("loinc = '2160-0'");
+    expect(sql).toContain("competencia BETWEEN '2023-01' AND '2024-12'");
+  });
+
+  it('rejeita uf, loinc e competência com caracteres fora do whitelist', async () => {
+    await expect(fetchAnomalyDataset({ ufSigla: "A'C" })).rejects.toThrow(/ufSigla/);
+    await expect(fetchAnomalyDataset({ loinc: "2160';--", ufSigla: 'SP' })).rejects.toThrow(
+      /loinc/,
+    );
+    await expect(
+      fetchAnomalyDataset({ range: { from: "2024'01", to: '2024-12' }, ufSigla: 'SP' }),
     ).rejects.toThrow(/competencia/);
     expect(queryAllMock).not.toHaveBeenCalled();
   });

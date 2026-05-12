@@ -4,6 +4,7 @@ import { Route, Routes, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Footer } from './components/Footer';
 import { Nav } from './components/Nav';
+import Explore from './pages/Explore';
 import Home from './pages/Home';
 import Sobre from './pages/Sobre';
 import Tendencias from './pages/Tendencias';
@@ -24,6 +25,7 @@ export default function App() {
             <Route element={<Home />} path="/uf/:ufSigla" />
             <Route element={<Home />} path="/uf/:ufSigla/mun/:codigo" />
             <Route element={<Tendencias />} path="/tendencias" />
+            <Route element={<Explore />} path="/explore" />
             <Route element={<Sobre />} path="/sobre" />
           </Routes>
         </ErrorBoundary>

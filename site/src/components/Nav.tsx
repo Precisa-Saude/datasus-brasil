@@ -7,6 +7,7 @@ import {
   Github,
   LineChart as LineChartIcon,
   Map as MapIcon,
+  Sparkles,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
@@ -15,8 +16,9 @@ import pkg from '../../package.json';
 
 const NAV_LINKS = [
   { col: 5, href: '/', icon: MapIcon, label: 'Mapa', span: 2 },
-  { col: 7, href: '/tendencias', icon: LineChartIcon, label: 'Tendências', span: 2 },
-  { col: 9, href: '/sobre', icon: BookOpen, label: 'Sobre', span: 2 },
+  { col: 7, href: '/explore', icon: Sparkles, label: 'Explorar', span: 2 },
+  { col: 9, href: '/tendencias', icon: LineChartIcon, label: 'Tendências', span: 2 },
+  { col: 11, href: '/sobre', icon: BookOpen, label: 'Sobre', span: 2 },
 ] as const;
 
 const GITHUB_URL = 'https://github.com/Precisa-Saude/datasus-brasil';
