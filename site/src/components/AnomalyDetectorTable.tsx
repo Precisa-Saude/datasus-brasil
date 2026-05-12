@@ -130,6 +130,7 @@ export function AnomalyDetectorTable({
               formatValue={formatValue}
               hits={pageHits}
               kind={kind}
+              labelForLoinc={labelForLoinc}
               rowHeight={ROW_HEIGHT}
             />
           </div>

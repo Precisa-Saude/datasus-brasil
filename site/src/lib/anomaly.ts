@@ -153,7 +153,14 @@ export function detectTemporalSpikes(rows: AnomalyRow[], options: SpikeOptions =
       hits.push({
         baseline: med,
         competencia: row.competencia,
-        details: { baselineN: baselineValues.length, mad, z },
+        details: {
+          baselineN: baselineValues.length,
+          mad,
+          valorAprovadoBRL: row.valorAprovadoBRL,
+          volumeExames: row.volumeExames,
+          windowMonths: window,
+          z,
+        },
         kind: 'spike',
         loinc: row.loinc,
         municipioCode: row.municipioCode,
@@ -261,7 +268,12 @@ export function detectConcentration(
     hits.push({
       baseline: total,
       competencia: r.competencia,
-      details: { groupTotal: total, share },
+      details: {
+        groupTotal: total,
+        share,
+        valorAprovadoBRL: r.valorAprovadoBRL,
+        volumeExames: r.volumeExames,
+      },
       kind: 'concentration',
       loinc: r.loinc,
       municipioCode: r.municipioCode,
@@ -333,7 +345,10 @@ export function detectPriceRatioOutliers(
     else ratiosByGroup.set(key, [ratio]);
   }
 
-  const stats = new Map<string, { hi: number; iqr: number; lo: number; median: number }>();
+  const stats = new Map<
+    string,
+    { groupN: number; hi: number; iqr: number; lo: number; median: number; q1: number; q3: number }
+  >();
   for (const [key, arr] of ratiosByGroup) {
     if (arr.length < 5) continue;
     const sorted = [...arr].sort((a, b) => a - b);
@@ -342,7 +357,7 @@ export function detectPriceRatioOutliers(
     const q3 = quantile(sorted, 0.75);
     const iqr = q3 - q1;
     if (iqr === 0) continue;
-    stats.set(key, { hi: q3 + k * iqr, iqr, lo: q1 - k * iqr, median });
+    stats.set(key, { groupN: arr.length, hi: q3 + k * iqr, iqr, lo: q1 - k * iqr, median, q1, q3 });
   }
 
   const hits: AnomalyHit[] = [];
@@ -362,7 +377,16 @@ export function detectPriceRatioOutliers(
     hits.push({
       baseline: s.median,
       competencia: r.competencia,
-      details: { iqr: s.iqr, median: s.median, ratio },
+      details: {
+        groupN: s.groupN,
+        iqr: s.iqr,
+        median: s.median,
+        q1: s.q1,
+        q3: s.q3,
+        ratio,
+        valorAprovadoBRL: r.valorAprovadoBRL,
+        volumeExames: r.volumeExames,
+      },
       kind: 'price-ratio',
       loinc: r.loinc,
       municipioCode: r.municipioCode,
