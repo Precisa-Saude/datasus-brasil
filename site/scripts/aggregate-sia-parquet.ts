@@ -23,9 +23,17 @@
  *
  * Se o raw parquet não existir pro mês (ex.: split files MG/RJ/SP 2021+),
  * o HEAD falha com 404 e o mês é pulado silenciosamente.
+ *
+ * Detecção de revisão upstream: pra cada partição já agregada, fazemos
+ * um HEAD no raw remoto e comparamos `Last-Modified` com o mtime do
+ * agregado local. Se o remoto foi republicado depois (DATASUS reescreve
+ * meses históricos quando o gestor empurra correções), re-agregamos —
+ * caso contrário pulamos pelo caminho rápido. `--force` ignora a
+ * comparação e re-agrega tudo. Markers na saída: `·` agregado novo,
+ * `↻` re-agregado por revisão upstream, `=` pulado, `x` 404, `e` erro.
  */
 
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -121,6 +129,28 @@ async function remoteExists(url: string): Promise<boolean> {
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Devolve o `Last-Modified` do raw parquet remoto convertido pra epoch
+ * ms, ou `null` se o header estiver ausente / a request falhar. Usado
+ * pra detectar partições publicadas pelo `datasus-parquet` mais
+ * recentemente que o agregado local — DATASUS reescreve meses
+ * históricos quando o gestor empurra correções retroativas, e o
+ * `existsSync` puro do `processMonth` deixava essas correções
+ * congeladas no `parquet-opt` indefinidamente.
+ */
+async function remoteLastModified(url: string): Promise<null | number> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) return null;
+    const lm = res.headers.get('last-modified');
+    if (lm === null) return null;
+    const t = Date.parse(lm);
+    return Number.isNaN(t) ? null : t;
+  } catch {
+    return null;
   }
 }
 
@@ -255,15 +285,27 @@ async function processMonth(
   uf: string,
   year: number,
   month: number,
-): Promise<{ emitted: number; status: '404' | 'done' | 'skipped' }> {
+): Promise<{ emitted: number; status: '404' | 'done' | 'refreshed' | 'skipped' }> {
   const mesStr = String(month).padStart(2, '0');
   const outFile = resolve(cli.outDir, `ano=${year}/uf=${uf}/mes=${mesStr}/part.parquet`);
-  if (existsSync(outFile) && !cli.force) {
-    return { emitted: 0, status: 'skipped' };
-  }
-
   const url = rawUrl(cli.sourceUrl, uf, year, month);
-  if (!(await remoteExists(url))) {
+
+  // Idempotência com detecção de revisão upstream: se o agregado local
+  // existe e `--force` não foi passado, comparamos o mtime local com o
+  // `Last-Modified` do raw remoto. Igualdade ou remoto mais antigo ⇒
+  // skip (caminho rápido — 1 HEAD ~50ms vs aggregação completa ~6s).
+  // Remoto mais novo ⇒ re-agrega, marca `refreshed`. Sem header de
+  // Last-Modified disponível, mantém o comportamento histórico (skip
+  // — fail open, pra não regredir em mirrors sem suporte a HEAD).
+  let isRefresh = false;
+  if (existsSync(outFile) && !cli.force) {
+    const localMtime = statSync(outFile).mtimeMs;
+    const remoteMtime = await remoteLastModified(url);
+    if (remoteMtime === null || remoteMtime <= localMtime) {
+      return { emitted: 0, status: 'skipped' };
+    }
+    isRefresh = true;
+  } else if (!(await remoteExists(url))) {
     return { emitted: 0, status: '404' };
   }
 
@@ -271,7 +313,7 @@ async function processMonth(
   const aggregated = await aggregateMonthSql(url);
   const rows = enrichAndReaggregate(aggregated, uf, competencia);
   await writeMonthPartition(cli.outDir, uf, year, month, rows);
-  return { emitted: rows.length, status: 'done' };
+  return { emitted: rows.length, status: isRefresh ? 'refreshed' : 'done' };
 }
 
 async function main(): Promise<void> {
@@ -293,6 +335,7 @@ async function main(): Promise<void> {
   // allSettled em vez de Promise.all: se um mês falhar, os outros 11
   // ainda escrevem suas partições. Erros viram marker 'e' na saída
   // pra não passar batido. Idempotência cuida do retry no próximo run.
+  let totalRefreshed = 0;
   for (const year of cli.years) {
     for (const uf of cli.ufs) {
       const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -306,13 +349,26 @@ async function main(): Promise<void> {
           );
           return `${m}e`;
         }
-        const sym = s.value.status === 'done' ? '·' : s.value.status === 'skipped' ? '=' : 'x';
+        if (s.value.status === 'refreshed') totalRefreshed += 1;
+        const sym =
+          s.value.status === 'done'
+            ? '·'
+            : s.value.status === 'refreshed'
+              ? '↻'
+              : s.value.status === 'skipped'
+                ? '='
+                : 'x';
         return `${m}${sym}`;
       });
       process.stderr.write(`[${year}] ${uf}: ${markers.join('')}\n`);
     }
   }
 
+  if (totalRefreshed > 0) {
+    process.stderr.write(
+      `↻ ${totalRefreshed} partição(ões) reagregada(s) por revisão upstream do datasus-parquet.\n`,
+    );
+  }
   process.stderr.write(`✓ Agregado em ${cli.outDir}\n`);
   process.exit(0);
 }
