@@ -213,6 +213,51 @@ export async function fetchTopUfsByVolume(n: number): Promise<string[]> {
  * por UF para comparação geográfica. Mesma fonte (`uf-totals.parquet`),
  * uma única requisição.
  */
+/**
+ * Linhas (município × LOINC × competência) de uma UF, opcionalmente
+ * filtradas por LOINC e/ou faixa de competências. Alimenta os
+ * detectores em `lib/anomaly.ts`.
+ *
+ * O grain do parquet já é (município, LOINC, competência), então
+ * NÃO há `GROUP BY` — devolvemos os fatos brutos pro JS rodar
+ * spike/per-capita/concentração/preço. Pushdown via `WHERE` reduz a
+ * leitura ao mínimo necessário.
+ */
+export async function fetchAnomalyDataset(params: {
+  loinc?: string;
+  range?: CompetenciaRange;
+  ufSigla: string;
+}): Promise<MunicipioAggregateRow[]> {
+  const { loinc, range, ufSigla } = params;
+  assertSafe('ufSigla', ufSigla);
+  if (loinc !== undefined) assertSafe('loinc', loinc);
+  if (range !== undefined) {
+    assertSafe('competencia', range.from);
+    assertSafe('competencia', range.to);
+  }
+  const safeUf = ufSigla.replace(/'/g, "''");
+  const filters: string[] = [];
+  if (loinc !== undefined) filters.push(`loinc = '${loinc.replace(/'/g, "''")}'`);
+  if (range !== undefined) {
+    filters.push(
+      `competencia BETWEEN '${range.from.replace(/'/g, "''")}' AND '${range.to.replace(/'/g, "''")}'`,
+    );
+  }
+  const where = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
+  return queryAll<MunicipioAggregateRow>(`
+    SELECT
+      competencia,
+      loinc,
+      municipioCode,
+      municipioNome,
+      '${safeUf}' AS ufSigla,
+      CAST(volumeExames AS DOUBLE) AS volumeExames,
+      CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
+    FROM read_parquet('${ufPartitionUrl(ufSigla)}')
+    ${where}
+  `);
+}
+
 export async function fetchTrendByUf(loinc: string, ufSiglas: string[]): Promise<TrendPoint[]> {
   if (ufSiglas.length === 0) return [];
   assertSafe('loinc', loinc);
