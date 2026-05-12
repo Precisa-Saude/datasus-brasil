@@ -313,9 +313,7 @@ function TooltipBody({ color, formatValue, hit, kind, loincLabel }: TooltipBodyP
         {percentChange !== null ? (
           <Row label="Variação" value={NF_PCT.format(percentChange)} valueColor={color} />
         ) : null}
-        {volume !== undefined ? (
-          <Row label="Volume" value={`${NF_INT.format(volume)} exames`} />
-        ) : null}
+        {volume !== undefined ? <Row label="Volume" value={NF_INT.format(volume)} /> : null}
         {valor !== undefined ? <Row label="Valor total" value={NF_BRL.format(valor)} /> : null}
         {/* Valor unitário (R$/exame) — útil em spike/concentração, onde
             o observed é volume e o valor total fica abstrato. Em
@@ -377,7 +375,7 @@ function DetectorExtras({ details, kind }: { details: Record<string, number>; ki
           />
         ) : null}
         {groupTotal !== undefined ? (
-          <Row label="Total nacional" value={`${NF_INT.format(groupTotal)} exames`} />
+          <Row label="Total nacional" value={NF_INT.format(groupTotal)} />
         ) : null}
       </div>
     );
