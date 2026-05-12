@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { AnomalyDetectorTable } from '@/components/AnomalyDetectorTable';
+import { AnomalyDetectorTable, hitKey } from '@/components/AnomalyDetectorTable';
+import { CnesBreakdown } from '@/components/CnesBreakdown';
 import type { ComboboxItem } from '@/components/ui/combobox';
 import { Combobox } from '@/components/ui/combobox';
 import { SlidingToggle } from '@/components/ui/sliding-toggle';
@@ -224,6 +225,14 @@ export default function Explore() {
     setPageByKind({ concentration: 1, 'per-capita': 1, 'price-ratio': 1, spike: 1 });
   }, [rows, municipioCode]);
 
+  // Linha expandida para detalhamento por CNES. Resetado sempre que o
+  // dataset, o município ou o detector mudam — não faz sentido manter
+  // seleção entre contextos diferentes.
+  const [selectedHit, setSelectedHit] = useState<AnomalyHit | null>(null);
+  useEffect(() => {
+    setSelectedHit(null);
+  }, [rows, municipioCode, detector]);
+
   const biomarkersByLoinc = useMemo<Record<string, string>>(
     () =>
       manifest ? Object.fromEntries(manifest.biomarkers.map((b) => [b.loinc, b.display])) : {},
@@ -341,22 +350,35 @@ export default function Explore() {
             ) : null}
 
             {!loading && hits.length > 0 ? (
-              <AnomalyDetectorTable
-                axisLabel={DETECTOR_AXIS_LABELS[detector]}
-                formatValue={formatValueForKind(detector)}
-                hits={hits}
-                kind={detector}
-                labelForLoinc={(l) => biomarkersByLoinc[l] ?? l}
-                onPageChange={(p) => setPageByKind((prev) => ({ ...prev, [detector]: p }))}
-                onPageSizeChange={(s) => {
-                  setPageSizeByKind((prev) => ({ ...prev, [detector]: s }));
-                  setPageByKind((prev) => ({ ...prev, [detector]: 1 }));
-                }}
-                page={pageByKind[detector]}
-                pageSize={pageSizeByKind[detector]}
-                populationLookup={population?.lookup ?? null}
-                title={DETECTOR_LABELS[detector]}
-              />
+              <>
+                <AnomalyDetectorTable
+                  axisLabel={DETECTOR_AXIS_LABELS[detector]}
+                  formatValue={formatValueForKind(detector)}
+                  hits={hits}
+                  kind={detector}
+                  labelForLoinc={(l) => biomarkersByLoinc[l] ?? l}
+                  onHitSelect={(h) =>
+                    setSelectedHit((prev) => (prev && hitKey(prev) === hitKey(h) ? null : h))
+                  }
+                  onPageChange={(p) => setPageByKind((prev) => ({ ...prev, [detector]: p }))}
+                  onPageSizeChange={(s) => {
+                    setPageSizeByKind((prev) => ({ ...prev, [detector]: s }));
+                    setPageByKind((prev) => ({ ...prev, [detector]: 1 }));
+                  }}
+                  page={pageByKind[detector]}
+                  pageSize={pageSizeByKind[detector]}
+                  populationLookup={population?.lookup ?? null}
+                  selectedHitKey={selectedHit ? hitKey(selectedHit) : null}
+                  title={DETECTOR_LABELS[detector]}
+                />
+                {selectedHit ? (
+                  <CnesBreakdown
+                    hit={selectedHit}
+                    labelForLoinc={(l) => biomarkersByLoinc[l] ?? l}
+                    onClose={() => setSelectedHit(null)}
+                  />
+                ) : null}
+              </>
             ) : null}
           </section>
         </>

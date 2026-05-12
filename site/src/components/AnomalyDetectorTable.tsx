@@ -43,9 +43,19 @@ export interface AnomalyDetectorTableProps {
   /** Lookup IBGE pra alimentar a row "População" do tooltip. `null` =
    *  dataset ainda não carregou (ou falhou). */
   populationLookup: null | PopulationLookup;
+  /** Hit atualmente expandido (renderizado em painel abaixo da tabela
+   *  pelo parent). A célula da competência ganha estado `aria-pressed`
+   *  pra indicar a seleção visualmente. */
+  selectedHitKey?: null | string;
   title: string;
+  onHitSelect?: (hit: AnomalyHit) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+}
+
+/** Chave canônica que identifica um hit dentro do tab atual. */
+export function hitKey(hit: AnomalyHit): string {
+  return `${hit.municipioCode}::${hit.competencia}::${hit.loinc}`;
 }
 
 export function AnomalyDetectorTable({
@@ -54,11 +64,13 @@ export function AnomalyDetectorTable({
   hits,
   kind,
   labelForLoinc,
+  onHitSelect,
   onPageChange,
   onPageSizeChange,
   page,
   pageSize,
   populationLookup,
+  selectedHitKey,
   title,
 }: AnomalyDetectorTableProps) {
   const totalPages = Math.max(1, Math.ceil(hits.length / pageSize));
@@ -110,9 +122,25 @@ export function AnomalyDetectorTable({
                 <span className="text-muted-foreground">{hit.ufSigla}</span>
               </Cell>
               <Cell>
-                <span className="text-muted-foreground tabular-nums whitespace-nowrap">
-                  {formatCompetencia(hit.competencia)}
-                </span>
+                {onHitSelect ? (
+                  <button
+                    aria-label={`Detalhar por estabelecimento — ${hit.municipioNome}, ${formatCompetencia(hit.competencia)}`}
+                    aria-pressed={selectedHitKey === hitKey(hit)}
+                    className={`tabular-nums whitespace-nowrap underline-offset-2 transition-colors hover:underline ${
+                      selectedHitKey === hitKey(hit)
+                        ? 'text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    onClick={() => onHitSelect(hit)}
+                    type="button"
+                  >
+                    {formatCompetencia(hit.competencia)}
+                  </button>
+                ) : (
+                  <span className="text-muted-foreground tabular-nums whitespace-nowrap">
+                    {formatCompetencia(hit.competencia)}
+                  </span>
+                )}
               </Cell>
               <Cell>
                 <span className="text-muted-foreground truncate" title={labelForLoinc(hit.loinc)}>

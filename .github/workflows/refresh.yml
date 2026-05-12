@@ -6,7 +6,11 @@ name: refresh
 #
 # Cadência: segunda-feira 08:00 UTC (1h após o cron de refresh do
 # datasus-parquet, dando margem para o S3 sync terminar).
-# Idempotente: pnpm aggregate pula partições já agregadas.
+# Idempotente: pnpm aggregate pula partições já agregadas, mas faz um
+# HEAD no raw remoto antes de pular — se o `Last-Modified` for mais
+# novo que o agregado local (DATASUS reescreveu o mês historicamente),
+# re-agrega só essa partição. `forceReaggregate=true` ignora o cache
+# por completo, útil após bump do SDK.
 #
 # Secrets necessários (configurar via Settings → Secrets → Actions):
 #   AWS_ROLE_ARN                — IAM role com S3 (read+write em sia-pa/,

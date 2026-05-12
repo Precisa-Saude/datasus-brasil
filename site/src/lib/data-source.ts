@@ -27,3 +27,12 @@ export const UF_TOTALS_PARQUET = `${DATA_BASE_URL}/parquet-opt/uf-totals.parquet
 export function ufPartitionUrl(ufSigla: string): string {
   return `${DATA_BASE_URL}/parquet-opt/uf=${ufSigla}/part.parquet`;
 }
+
+// Parquet bruto SIA-PA (1:1 com o DBC original do FTP DATASUS), exposto
+// pelo mesmo CDN sob o prefixo `/sia-pa/`. Usado pelos detalhamentos
+// que precisam de granularidade abaixo do agregado (ex.: quebra por
+// CNES — coluna `PA_CODUNI` — não está no parquet-opt).
+export function rawSiaPaUrl(ano: number, ufSigla: string, mes: number): string {
+  const mesStr = String(mes).padStart(2, '0');
+  return `${DATA_BASE_URL}/sia-pa/ano=${ano}/uf=${ufSigla}/mes=${mesStr}/part.parquet`;
+}
