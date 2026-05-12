@@ -42,6 +42,7 @@ function renderTable(hits: AnomalyHit[], page = 1, pageSize = 20) {
         onPageSizeChange={onPageSizeChange}
         page={page}
         pageSize={pageSize}
+        populationLookup={null}
         title="Pico temporal"
       />
     </MemoryRouter>,

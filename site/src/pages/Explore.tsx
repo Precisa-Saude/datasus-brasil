@@ -7,8 +7,15 @@ import { Combobox } from '@/components/ui/combobox';
 import { SlidingToggle } from '@/components/ui/sliding-toggle';
 import type { AggregateIndex } from '@/lib/aggregates';
 import type { AnomalyHit, AnomalyKind } from '@/lib/anomaly';
-import { detectConcentration, detectPriceRatioOutliers, detectTemporalSpikes } from '@/lib/anomaly';
+import {
+  detectConcentration,
+  detectPerCapitaOutliers,
+  detectPriceRatioOutliers,
+  detectTemporalSpikes,
+} from '@/lib/anomaly';
 import { MANIFEST_URL } from '@/lib/data-source';
+import type { PopulationDataset } from '@/lib/population';
+import { loadPopulation } from '@/lib/population';
 import type { MunicipioAggregateRow } from '@/lib/queries';
 import { fetchAnomalyDataset } from '@/lib/queries';
 
@@ -26,10 +33,11 @@ import { fetchAnomalyDataset } from '@/lib/queries';
 const ALL_LOINCS = '__ALL__';
 const ALL_MUNICIPIOS = '__ALL__';
 
-type DetectorTabKey = 'concentration' | 'price-ratio' | 'spike';
+type DetectorTabKey = 'concentration' | 'per-capita' | 'price-ratio' | 'spike';
 
 const DETECTOR_TABS = [
   { label: 'Pico temporal', value: 'spike' },
+  { label: 'Per capita', value: 'per-capita' },
   { label: 'Concentração', value: 'concentration' },
   { label: 'Preço/exame', value: 'price-ratio' },
 ] as const satisfies readonly { label: string; value: DetectorTabKey }[];
@@ -88,8 +96,10 @@ export default function Explore() {
   );
   const [detector, setDetector] = useState<DetectorTabKey>(() => {
     const raw = searchParams.get('det');
-    return raw === 'concentration' || raw === 'price-ratio' ? raw : 'spike';
+    if (raw === 'concentration' || raw === 'price-ratio' || raw === 'per-capita') return raw;
+    return 'spike';
   });
+  const [population, setPopulation] = useState<null | PopulationDataset>(null);
   const [rows, setRows] = useState<MunicipioAggregateRow[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<null | string>(null);
@@ -104,6 +114,13 @@ export default function Explore() {
         }
       },
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    );
+    // População é opcional pros outros detectores — falha silenciosa
+    // significa que a tab "Per capita" e o campo no tooltip mostram
+    // estado "indisponível", mas não bloqueiam o resto da página.
+    loadPopulation().then(
+      (p) => setPopulation(p),
+      () => undefined,
     );
     // Boot apenas no mount; mudanças subsequentes vêm dos selects.
   }, []);
@@ -179,11 +196,15 @@ export default function Explore() {
     if (!filteredRows) return [];
     if (detector === 'spike') return detectTemporalSpikes(filteredRows);
     if (detector === 'price-ratio') return detectPriceRatioOutliers(filteredRows);
+    if (detector === 'per-capita') {
+      if (!population) return [];
+      return detectPerCapitaOutliers(filteredRows, population.lookup);
+    }
     const base = rows ?? filteredRows;
     return detectConcentration(base)
       .filter((h) => (municipioCode === ALL_MUNICIPIOS ? true : h.municipioCode === municipioCode))
       .map((h) => ({ ...h, baseline: 0.2, observed: h.details['share'] ?? 0 }));
-  }, [filteredRows, rows, detector, municipioCode]);
+  }, [filteredRows, rows, detector, municipioCode, population]);
 
   // Paginação — page (1-indexado) + pageSize por detector.
   // Reseta page=1 quando o dataset bruto muda ou município muda.
@@ -333,6 +354,7 @@ export default function Explore() {
                 }}
                 page={pageByKind[detector]}
                 pageSize={pageSizeByKind[detector]}
+                populationLookup={population?.lookup ?? null}
                 title={DETECTOR_LABELS[detector]}
               />
             ) : null}

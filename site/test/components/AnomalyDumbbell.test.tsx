@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { AnomalyDumbbell, isDumbbellLogScale } from '@/components/AnomalyDumbbell';
 import type { AnomalyHit } from '@/lib/anomaly';
 
+const noopPop = null;
+
 function hit(overrides: Partial<AnomalyHit> = {}): AnomalyHit {
   return {
     baseline: 50,
@@ -39,6 +41,7 @@ describe('AnomalyDumbbell', () => {
         hits={hits}
         kind="spike"
         labelForLoinc={noopLabel}
+        populationLookup={noopPop}
         rowHeight={36}
       />,
     );
@@ -55,6 +58,7 @@ describe('AnomalyDumbbell', () => {
         hits={[hit()]}
         kind="spike"
         labelForLoinc={noopLabel}
+        populationLookup={noopPop}
         rowHeight={36}
       />,
     );
@@ -66,7 +70,9 @@ describe('AnomalyDumbbell', () => {
     expect(screen.getByText(/Variação/)).toBeInTheDocument();
     expect(screen.getByText(/Volume/)).toBeInTheDocument();
     expect(screen.getByText(/Valor unitário/)).toBeInTheDocument();
-    expect(screen.getByText(/IBGE/)).toBeInTheDocument();
+    // Sem populationLookup → row "População" aparece com label e "indisponível".
+    expect(screen.getByText(/^População/)).toBeInTheDocument();
+    expect(screen.getByText(/indisponível/)).toBeInTheDocument();
     fireEvent.mouseLeave(dots[0]!);
     expect(screen.queryByText(/Cidade A/)).not.toBeInTheDocument();
   });
@@ -85,6 +91,7 @@ describe('AnomalyDumbbell', () => {
         hits={[concentrationHit]}
         kind="concentration"
         labelForLoinc={noopLabel}
+        populationLookup={noopPop}
         rowHeight={36}
       />,
     );
@@ -93,6 +100,28 @@ describe('AnomalyDumbbell', () => {
     expect(screen.queryByText(/Variação/)).not.toBeInTheDocument();
     expect(screen.getByText(/Share/)).toBeInTheDocument();
     expect(screen.getByText(/Total nacional/)).toBeInTheDocument();
+  });
+
+  it('mostra população do município e exames por 1k hab. quando lookup IBGE é fornecido', () => {
+    const pop = (code: string, year: number): number | undefined => {
+      if (code === '350000' && year === 2024) return 10000;
+      return undefined;
+    };
+    const { container } = render(
+      <AnomalyDumbbell
+        formatValue={(v) => String(v)}
+        hits={[hit({ observed: 1000, details: { volumeExames: 1000, valorAprovadoBRL: 12000 } })]}
+        kind="spike"
+        labelForLoinc={noopLabel}
+        populationLookup={pop}
+        rowHeight={36}
+      />,
+    );
+    const dot = container.querySelector('circle[fill="#7c3aed"]')!;
+    fireEvent.mouseEnter(dot);
+    expect(screen.getByText('10.000')).toBeInTheDocument();
+    expect(screen.getByText(/Exames por 1k hab/)).toBeInTheDocument();
+    expect(screen.getByText('100.0')).toBeInTheDocument(); // 1000*1000/10000
   });
 
   it('mostra estatísticas Q1–Q3 no detector de preço/exame', () => {
@@ -118,6 +147,7 @@ describe('AnomalyDumbbell', () => {
         hits={[priceHit]}
         kind="price-ratio"
         labelForLoinc={noopLabel}
+        populationLookup={noopPop}
         rowHeight={36}
       />,
     );

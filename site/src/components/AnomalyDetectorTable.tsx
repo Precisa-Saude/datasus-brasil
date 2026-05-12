@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 
-import type { AnomalyHit, AnomalyKind } from '@/lib/anomaly';
+import type { AnomalyHit, AnomalyKind, PopulationLookup } from '@/lib/anomaly';
 import { formatCompetencia } from '@/lib/format';
 
 import { AnomalyDumbbell, isDumbbellLogScale } from './AnomalyDumbbell';
@@ -29,7 +29,7 @@ const BASELINE_LABELS: Record<AnomalyKind, string> = {
   concentration: 'limite de concentração',
   'per-capita': 'baseline (mín. por 1k hab.)',
   'price-ratio': 'mediana nacional',
-  spike: 'baseline (média)',
+  spike: 'baseline (mediana)',
 };
 
 export interface AnomalyDetectorTableProps {
@@ -40,6 +40,9 @@ export interface AnomalyDetectorTableProps {
   labelForLoinc: (loinc: string) => string;
   page: number;
   pageSize: number;
+  /** Lookup IBGE pra alimentar a row "População" do tooltip. `null` =
+   *  dataset ainda não carregou (ou falhou). */
+  populationLookup: null | PopulationLookup;
   title: string;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
@@ -55,6 +58,7 @@ export function AnomalyDetectorTable({
   onPageSizeChange,
   page,
   pageSize,
+  populationLookup,
   title,
 }: AnomalyDetectorTableProps) {
   const totalPages = Math.max(1, Math.ceil(hits.length / pageSize));
@@ -131,6 +135,7 @@ export function AnomalyDetectorTable({
               hits={pageHits}
               kind={kind}
               labelForLoinc={labelForLoinc}
+              populationLookup={populationLookup}
               rowHeight={ROW_HEIGHT}
             />
           </div>
