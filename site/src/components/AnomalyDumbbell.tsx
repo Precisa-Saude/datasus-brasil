@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { AnomalyHit, AnomalyKind } from '@/lib/anomaly';
 import { formatCompetencia } from '@/lib/format';
@@ -74,7 +75,13 @@ export function AnomalyDumbbell({
   const color = KIND_COLORS[kind];
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(560);
-  const [hoveredIdx, setHoveredIdx] = useState<null | number>(null);
+  // Hover state com posição do dot em **viewport coords**, capturada
+  // via `getBoundingClientRect()` no mouseEnter. O tooltip é portado
+  // pra `document.body` com `position: fixed` — assim escapa do
+  // ancestral `overflow-x-auto` da tabela, que antes provocava
+  // scrollbar horizontal e recorte do conteúdo quando o tooltip
+  // estourava a largura da coluna do chart.
+  const [hovered, setHovered] = useState<null | { idx: number; x: number; y: number }>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -132,12 +139,12 @@ export function AnomalyDumbbell({
   const chartHeight = hits.length * rowHeight;
   const totalHeight = chartHeight + AXIS_HEIGHT;
 
-  const hoveredHit = hoveredIdx !== null ? hits[hoveredIdx] : null;
-  const hoveredXObs = hoveredHit ? xFor(hoveredHit.observed) : 0;
-  const hoveredY = hoveredIdx !== null ? hoveredIdx * rowHeight + rowHeight / 2 : 0;
-  // Posição horizontal do tooltip: alinha próximo ao dot, mas
-  // mantém dentro do container quando o dot está perto da borda.
-  const tooltipPlacement: 'left' | 'right' = hoveredXObs < width / 2 ? 'right' : 'left';
+  const hoveredHit = hovered !== null ? (hits[hovered.idx] ?? null) : null;
+  const handleEnter = (idx: number, target: SVGElement): void => {
+    const r = target.getBoundingClientRect();
+    setHovered({ idx, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  };
+  const clearHover = (): void => setHovered(null);
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -196,8 +203,8 @@ export function AnomalyDumbbell({
                 cx={xObs}
                 cy={y}
                 fill={color}
-                onMouseEnter={() => setHoveredIdx(idx)}
-                onMouseLeave={() => setHoveredIdx(null)}
+                onMouseEnter={(e) => handleEnter(idx, e.currentTarget)}
+                onMouseLeave={clearHover}
                 r={DOT_R}
               />
               {/* Hit-area maior, invisível, pra facilitar o hover no dot. */}
@@ -206,8 +213,8 @@ export function AnomalyDumbbell({
                 cx={xObs}
                 cy={y}
                 fill="transparent"
-                onMouseEnter={() => setHoveredIdx(idx)}
-                onMouseLeave={() => setHoveredIdx(null)}
+                onMouseEnter={(e) => handleEnter(idx, e.currentTarget)}
+                onMouseLeave={clearHover}
                 r={DOT_R + 6}
               />
               <text
@@ -254,24 +261,63 @@ export function AnomalyDumbbell({
         })}
       </svg>
 
-      {hoveredHit ? (
-        <div
-          className="border-border bg-popover text-popover-foreground pointer-events-none absolute z-10 w-72 rounded-lg border p-3 font-sans text-xs shadow-lg"
-          style={{
-            left: tooltipPlacement === 'right' ? hoveredXObs + 14 : undefined,
-            right: tooltipPlacement === 'left' ? width - hoveredXObs + 14 : undefined,
-            top: Math.max(0, hoveredY - 8),
-          }}
-        >
-          <TooltipBody
-            color={color}
-            formatValue={formatValue}
-            hit={hoveredHit}
-            kind={kind}
-            loincLabel={labelForLoinc(hoveredHit.loinc)}
-          />
-        </div>
-      ) : null}
+      {hoveredHit && hovered && typeof document !== 'undefined'
+        ? createPortal(
+            <TooltipPortal
+              color={color}
+              dotX={hovered.x}
+              dotY={hovered.y}
+              formatValue={formatValue}
+              hit={hoveredHit}
+              kind={kind}
+              loincLabel={labelForLoinc(hoveredHit.loinc)}
+            />,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+interface TooltipPortalProps {
+  color: string;
+  dotX: number;
+  dotY: number;
+  formatValue: (v: number) => string;
+  hit: AnomalyHit;
+  kind: AnomalyKind;
+  loincLabel: string;
+}
+
+function TooltipPortal({
+  color,
+  dotX,
+  dotY,
+  formatValue,
+  hit,
+  kind,
+  loincLabel,
+}: TooltipPortalProps) {
+  // Decide o lado com base na posição do dot na **viewport** —
+  // garante que o tooltip nunca abre pra fora da janela.
+  const viewportW = typeof window === 'undefined' ? 1024 : window.innerWidth;
+  const placeRight = dotX < viewportW / 2;
+  const style: React.CSSProperties = {
+    top: Math.max(8, dotY - 8),
+    ...(placeRight ? { left: dotX + 14 } : { right: Math.max(8, viewportW - dotX + 14) }),
+  };
+  return (
+    <div
+      className="border-border bg-popover text-popover-foreground pointer-events-none fixed z-50 w-72 rounded-lg border p-3 font-sans text-xs shadow-lg"
+      style={style}
+    >
+      <TooltipBody
+        color={color}
+        formatValue={formatValue}
+        hit={hit}
+        kind={kind}
+        loincLabel={loincLabel}
+      />
     </div>
   );
 }
