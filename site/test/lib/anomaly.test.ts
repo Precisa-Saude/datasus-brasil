@@ -74,6 +74,18 @@ describe('detectTemporalSpikes', () => {
     expect(hits.map((h) => h.municipioCode)).toEqual(['350000']);
   });
 
+  it('flagra dois meses consecutivos com volume extremo (median + MAD)', () => {
+    // Regressão: com z-score baseado em média/std, um spike anterior
+    // contaminava a baseline do mês seguinte e o segundo deixava de
+    // ser flagado mesmo com valor quase idêntico (caso Itaqui set/out
+    // 2018). Median + MAD é resistente a essa contaminação.
+    const baseline = Array.from({ length: 12 }, (_, i) => 50 + (i % 3) - 1);
+    const rows = series(munA, '2023-01', [...baseline, 900_000, 900_000]);
+    const hits = detectTemporalSpikes(rows, { minBaseline: 6, threshold: 3, window: 12 });
+    const months = hits.map((h) => h.competencia).sort();
+    expect(months).toEqual(['2024-01', '2024-02']);
+  });
+
   it('ordena por score decrescente', () => {
     const baseVar = Array.from({ length: 12 }, (_, i) => 50 + (i % 3) - 1);
     const moderate = series(munA, '2023-01', [...baseVar, 300]);

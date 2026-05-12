@@ -81,22 +81,41 @@ function sortHits(hits: AnomalyHit[]): void {
 }
 
 /**
- * Z-score sobre janela rolante por (município, LOINC). O ponto atual
- * NÃO entra no cálculo do baseline — evita que um spike "se anteveja"
- * e suavize o próprio z-score.
+ * Z-score robusto (median + MAD) sobre janela rolante por
+ * (município, LOINC). Trocamos média/desvio-padrão por mediana e
+ * MAD (median absolute deviation) porque o detector original
+ * "comia o próprio rabo": dois meses consecutivos com volume
+ * extremo se entrelaçavam — o primeiro inflava mean e std da
+ * baseline do segundo, e o segundo deixava de ser flagado mesmo
+ * tendo praticamente o mesmo valor (caso real: Itaqui set/out 2018,
+ * 902 032 e 902 028 exames, com std-z só set 2018 aparecia).
+ *
+ * Mediana + MAD são resistentes a até ~50% de contaminação por
+ * outliers, então a baseline mantém referência aos meses
+ * "normais" mesmo com um spike anterior dentro da janela.
+ *
+ * O fator 0,6745 = `1 / qnorm(0,75)`, usado pelo z-score modificado
+ * (Iglewicz & Hoaglin) pra produzir uma escala comparável ao z-score
+ * clássico em distribuições normais — mantém o threshold default 3,0
+ * com a mesma semântica intuitiva.
  *
  * Flag aplicado quando:
- * - baseline tem ≥ `minBaseline` observações distintas e não-zero,
- * - std da janela > 0 (séries constantes geram z indefinido),
- * - |z| ≥ `threshold`.
+ * - baseline tem ≥ `minBaseline` observações não-zero,
+ * - MAD > 0 (baseline constante geraria z indefinido),
+ * - |z robusto| ≥ `threshold`.
  */
 export interface SpikeOptions {
   /** Mínimo de pontos não-zero na janela pra produzir flag. Default: 6. */
   minBaseline?: number;
-  /** |z| mínimo pra ser considerado spike. Default: 3.0. */
+  /** |z robusto| mínimo pra ser considerado spike. Default: 3.0. */
   threshold?: number;
   /** Tamanho da janela rolante em meses. Default: 12. */
   window?: number;
+}
+
+function median(sortedValues: number[]): number {
+  if (sortedValues.length === 0) return 0;
+  return quantile(sortedValues, 0.5);
 }
 
 export function detectTemporalSpikes(rows: AnomalyRow[], options: SpikeOptions = {}): AnomalyHit[] {
@@ -119,20 +138,22 @@ export function detectTemporalSpikes(rows: AnomalyRow[], options: SpikeOptions =
     for (let i = 0; i < group.length; i++) {
       const start = Math.max(0, i - window);
       const baselineSlice = group.slice(start, i);
-      const baseline = baselineSlice.filter((r) => r.volumeExames > 0);
-      if (baseline.length < minBaseline) continue;
-      const mean = baseline.reduce((s, r) => s + r.volumeExames, 0) / baseline.length;
-      const variance =
-        baseline.reduce((s, r) => s + (r.volumeExames - mean) ** 2, 0) / baseline.length;
-      const std = Math.sqrt(variance);
-      if (std === 0) continue;
+      const baselineValues = baselineSlice
+        .filter((r) => r.volumeExames > 0)
+        .map((r) => r.volumeExames);
+      if (baselineValues.length < minBaseline) continue;
+      const sorted = [...baselineValues].sort((a, b) => a - b);
+      const med = median(sorted);
+      const deviations = baselineValues.map((v) => Math.abs(v - med)).sort((a, b) => a - b);
+      const mad = median(deviations);
+      if (mad === 0) continue;
       const row = group[i]!;
-      const z = (row.volumeExames - mean) / std;
+      const z = (0.6745 * (row.volumeExames - med)) / mad;
       if (Math.abs(z) < threshold) continue;
       hits.push({
-        baseline: mean,
+        baseline: med,
         competencia: row.competencia,
-        details: { baselineN: baseline.length, std, z },
+        details: { baselineN: baselineValues.length, mad, z },
         kind: 'spike',
         loinc: row.loinc,
         municipioCode: row.municipioCode,
