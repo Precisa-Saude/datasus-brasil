@@ -4,6 +4,7 @@ import {
   DATA_BASE_URL,
   MANIFEST_URL,
   PMTILES_URL,
+  rawSiaPaUrl,
   UF_TOTALS_PARQUET,
   ufPartitionUrl,
 } from '@/lib/data-source';
@@ -35,5 +36,18 @@ describe('ufPartitionUrl', () => {
 
   it('preserva o case da sigla', () => {
     expect(ufPartitionUrl('SP')).toContain('uf=SP/');
+  });
+});
+
+describe('rawSiaPaUrl', () => {
+  it('monta URL no layout Hive ano=YYYY/uf=XX/mes=MM no prefixo /sia-pa', () => {
+    expect(rawSiaPaUrl(2018, 'RS', 9)).toBe(
+      `${DATA_BASE_URL}/sia-pa/ano=2018/uf=RS/mes=09/part.parquet`,
+    );
+  });
+
+  it('zero-pad para o mês de um dígito', () => {
+    expect(rawSiaPaUrl(2024, 'SP', 1)).toContain('mes=01/');
+    expect(rawSiaPaUrl(2024, 'SP', 12)).toContain('mes=12/');
   });
 });

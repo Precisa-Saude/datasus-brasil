@@ -7,12 +7,14 @@ vi.mock('@/lib/duckdb', () => ({
 import { queryAll } from '@/lib/duckdb';
 import {
   fetchAnomalyDataset,
+  fetchCnesBreakdown,
   fetchMunicipioAggregates,
   fetchTopLoincsByVolume,
   fetchTopUfsByVolume,
   fetchTrend,
   fetchTrendByUf,
   fetchUfAggregates,
+  sigtapsForLoinc,
 } from '@/lib/queries';
 
 const queryAllMock = vi.mocked(queryAll);
@@ -206,5 +208,86 @@ describe('fetchAnomalyDataset', () => {
       fetchAnomalyDataset({ range: { from: "2024'01", to: '2024-12' }, ufSigla: 'SP' }),
     ).rejects.toThrow(/competencia/);
     expect(queryAllMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('sigtapsForLoinc', () => {
+  it('devolve pelo menos um SIGTAP para um LOINC conhecido do catálogo', () => {
+    // VHS — Velocidade de Hemossedimentação; o SDK garante mapeamento canônico.
+    const sigtaps = sigtapsForLoinc('30341-2');
+    expect(sigtaps.length).toBeGreaterThanOrEqual(1);
+    for (const s of sigtaps) expect(s).toMatch(/^\d{10}$/);
+  });
+
+  it('devolve vazio para LOINC fora do catálogo', () => {
+    expect(sigtapsForLoinc('inexistente-9999-9')).toEqual([]);
+  });
+
+  it('deduplica SIGTAPs repetidos entre loincToSigtap e listBiomarkers', () => {
+    const sigtaps = sigtapsForLoinc('30341-2');
+    expect(new Set(sigtaps).size).toBe(sigtaps.length);
+  });
+});
+
+describe('fetchCnesBreakdown', () => {
+  const baseParams = {
+    competencia: '2018-09',
+    ibgeCode6: '431020',
+    loinc: '30341-2',
+    ufSigla: 'RS',
+  } as const;
+
+  it('emite SELECT com PA_CODUNI, PA_QTDAPR e PA_VALAPR contra a URL bruta', async () => {
+    await fetchCnesBreakdown(baseParams);
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    expect(sql).toContain('/sia-pa/ano=2018/uf=RS/mes=09/part.parquet');
+    expect(sql).toContain('PA_CODUNI');
+    expect(sql).toContain('PA_QTDAPR');
+    expect(sql).toContain('PA_VALAPR');
+    // PA_VALAPR já chega em reais no parquet bruto — sem divisão por 100.
+    expect(sql).not.toContain('/ 100');
+    expect(sql).toContain("PA_UFMUN AS VARCHAR) = '431020'");
+    expect(sql).toContain('PA_PROC_ID');
+  });
+
+  it('inclui todos os SIGTAPs do LOINC no filtro IN(...)', async () => {
+    await fetchCnesBreakdown(baseParams);
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    const sigtaps = sigtapsForLoinc(baseParams.loinc);
+    for (const s of sigtaps) expect(sql).toContain(`'${s}'`);
+  });
+
+  it('devolve [] sem rodar query quando o LOINC não tem nenhum SIGTAP no catálogo', async () => {
+    const result = await fetchCnesBreakdown({ ...baseParams, loinc: 'inexistente' });
+    expect(result).toEqual([]);
+    expect(queryAllMock).not.toHaveBeenCalled();
+  });
+
+  it('rejeita competência fora do formato YYYY-MM', async () => {
+    await expect(fetchCnesBreakdown({ ...baseParams, competencia: '2018-13' })).rejects.toThrow(
+      /Competência fora do padrão/,
+    );
+    await expect(fetchCnesBreakdown({ ...baseParams, competencia: '2018' })).rejects.toThrow();
+    expect(queryAllMock).not.toHaveBeenCalled();
+  });
+
+  it('rejeita uf, loinc, competência ou município com caracteres fora do whitelist', async () => {
+    await expect(fetchCnesBreakdown({ ...baseParams, ufSigla: "R'S" })).rejects.toThrow(/ufSigla/);
+    await expect(fetchCnesBreakdown({ ...baseParams, loinc: "30341';--" })).rejects.toThrow(
+      /loinc/,
+    );
+    await expect(fetchCnesBreakdown({ ...baseParams, competencia: "2018'09" })).rejects.toThrow(
+      /competencia/,
+    );
+    await expect(fetchCnesBreakdown({ ...baseParams, ibgeCode6: "4310'2" })).rejects.toThrow(
+      /municipioCode/,
+    );
+    expect(queryAllMock).not.toHaveBeenCalled();
+  });
+
+  it('trunca municipioCode no IBGE 6-dígitos mesmo quando recebe 7', async () => {
+    await fetchCnesBreakdown({ ...baseParams, ibgeCode6: '4310203' });
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    expect(sql).toContain("PA_UFMUN AS VARCHAR) = '431020'");
   });
 });

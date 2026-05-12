@@ -1,6 +1,7 @@
 import type { CompetenciaRange } from './aggregates';
-import { UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
+import { rawSiaPaUrl, UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
 import { queryAll } from './duckdb';
+import sigtapCatalog from './loinc-sigtap-catalog.generated.json';
 
 /**
  * Defesa em profundidade contra SQL injection. Os valores que entram
@@ -255,6 +256,84 @@ export async function fetchAnomalyDataset(params: {
       CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
     FROM read_parquet('${ufPartitionUrl(ufSigla)}')
     ${where}
+  `);
+}
+
+export interface CnesBreakdownRow {
+  cnes: string;
+  valorAprovadoBRL: number;
+  volumeExames: number;
+}
+
+/**
+ * Lista os códigos SIGTAP que mapeiam pro LOINC informado. O catálogo
+ * é extraído do `@precisa-saude/datasus-sdk` em build-time pelo
+ * script `scripts/extract-sigtap-catalog.ts` e committed como JSON
+ * estático — o SDK em si não roda no browser (importa basic-ftp/fs).
+ * Re-gerar quando o SDK for atualizado.
+ */
+const CATALOG = sigtapCatalog as Readonly<Record<string, readonly string[]>>;
+
+export function sigtapsForLoinc(loinc: string): string[] {
+  const entry = CATALOG[loinc];
+  return entry ? [...entry] : [];
+}
+
+const SAFE_SIGTAP = /^\d{10}$/;
+
+/**
+ * Quebra por estabelecimento (CNES) de uma tupla
+ * (município × LOINC × competência), consultando o parquet bruto
+ * SIA-PA sob demanda. Não usado pelo agregado do site — disparado
+ * pelo usuário ao expandir uma linha do explorador.
+ *
+ * Implementação favorece UM Range Request por chamada (uma só
+ * partição mensal). `PA_VALAPR` já chega em BRL no parquet bruto
+ * (o decoder DBF→parquet normaliza antes de escrever — o dicionário
+ * oficial do SIA-PA fala em centavos, mas o dado publicado pelo
+ * `datasus-parquet` já é decimal). Validado contra SP/2024-01: VHS
+ * a R$ 4,11/exame, em linha com a tabela SIGTAP.
+ */
+export async function fetchCnesBreakdown(params: {
+  competencia: string;
+  ibgeCode6: string;
+  loinc: string;
+  ufSigla: string;
+}): Promise<CnesBreakdownRow[]> {
+  const { competencia, ibgeCode6, loinc, ufSigla } = params;
+  assertSafe('ufSigla', ufSigla);
+  assertSafe('loinc', loinc);
+  assertSafe('competencia', competencia);
+  assertSafe('municipioCode', ibgeCode6);
+  const sigtaps = sigtapsForLoinc(loinc);
+  if (sigtaps.length === 0) return [];
+  for (const s of sigtaps) {
+    if (!SAFE_SIGTAP.test(s)) {
+      throw new Error(`SIGTAP inválido no catálogo para LOINC ${loinc}: "${s}"`);
+    }
+  }
+  const [yearStr, monthStr] = competencia.split('-');
+  if (yearStr === undefined || monthStr === undefined) {
+    throw new Error(`Competência fora do padrão YYYY-MM: "${competencia}"`);
+  }
+  const ano = Number(yearStr);
+  const mes = Number(monthStr);
+  if (!Number.isInteger(ano) || ano < 2008 || !Number.isInteger(mes) || mes < 1 || mes > 12) {
+    throw new Error(`Competência fora do padrão YYYY-MM: "${competencia}"`);
+  }
+  const url = rawSiaPaUrl(ano, ufSigla, mes);
+  const safeIbge = ibgeCode6.replace(/'/g, "''").slice(0, 6);
+  const sigtapList = sigtaps.map((s) => `'${s}'`).join(', ');
+  return queryAll<CnesBreakdownRow>(`
+    SELECT
+      CAST(PA_CODUNI AS VARCHAR) AS cnes,
+      CAST(SUM(TRY_CAST(PA_QTDAPR AS DOUBLE)) AS DOUBLE) AS volumeExames,
+      CAST(SUM(TRY_CAST(PA_VALAPR AS DOUBLE)) AS DOUBLE) AS valorAprovadoBRL
+    FROM read_parquet('${url}')
+    WHERE CAST(PA_UFMUN AS VARCHAR) = '${safeIbge}'
+      AND CAST(PA_PROC_ID AS VARCHAR) IN (${sigtapList})
+    GROUP BY 1
+    ORDER BY volumeExames DESC
   `);
 }
 
