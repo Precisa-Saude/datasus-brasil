@@ -1,6 +1,6 @@
 {
   "name": "datasus-viz",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Geo-visualização (site + CLI) de microdados DATASUS — site MapLibre + DuckDB WASM e CLI consumindo @precisa-saude/datasus-sdk.",
   "homepage": "https://github.com/Precisa-Saude/datasus-viz",

@@ -1,3 +1,9 @@
+## [1.5.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.4.0...v1.5.0) (2026-05-12)
+
+### Features
+
+* **site:** explorar atipicidades por UF, município e exame ([#37](https://github.com/Precisa-Saude/datasus-viz/issues/37)) ([038809c](https://github.com/Precisa-Saude/datasus-viz/commit/038809cc7ea71e0cd8acd7e1ec379ea7d3bb908c))
+
 ## [1.4.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.3.2...v1.4.0) (2026-05-07)
 
 ### Features
