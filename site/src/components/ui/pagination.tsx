@@ -35,7 +35,11 @@ export function Pagination({
   pageSizeOptions = DEFAULT_PAGE_SIZES,
   totalRows,
 }: PaginationProps) {
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  // Guard: se algum consumidor passar `pageSize=0`, `Math.ceil(n/0)`
+  // explode pra Infinity e quebra todo o cálculo de páginas. Clampamos
+  // em 1 pra manter o componente robusto contra inputs degenerados.
+  const safePageSize = Math.max(1, pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalRows / safePageSize));
   const current = Math.min(Math.max(1, page), totalPages);
   const canPrev = current > 1;
   const canNext = current < totalPages;
