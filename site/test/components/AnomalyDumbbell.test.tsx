@@ -65,6 +65,7 @@ describe('AnomalyDumbbell', () => {
     expect(screen.getByText(/Exame 2160-0/)).toBeInTheDocument();
     expect(screen.getByText(/Variação/)).toBeInTheDocument();
     expect(screen.getByText(/Volume/)).toBeInTheDocument();
+    expect(screen.getByText(/Valor unitário/)).toBeInTheDocument();
     expect(screen.getByText(/IBGE/)).toBeInTheDocument();
     fireEvent.mouseLeave(dots[0]!);
     expect(screen.queryByText(/Cidade A/)).not.toBeInTheDocument();
@@ -124,6 +125,9 @@ describe('AnomalyDumbbell', () => {
     fireEvent.mouseEnter(dot);
     expect(screen.getByText(/Q1.+Q3/)).toBeInTheDocument();
     expect(screen.getByText(/Municípios/)).toBeInTheDocument();
+    // Em price-ratio o observed JÁ é o valor unitário, então
+    // omitimos a row extra "Valor unitário".
+    expect(screen.queryByText(/Valor unitário/)).not.toBeInTheDocument();
   });
 });
 

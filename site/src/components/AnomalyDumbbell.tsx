@@ -317,6 +317,12 @@ function TooltipBody({ color, formatValue, hit, kind, loincLabel }: TooltipBodyP
           <Row label="Volume" value={`${NF_INT.format(volume)} exames`} />
         ) : null}
         {valor !== undefined ? <Row label="Valor total" value={NF_BRL.format(valor)} /> : null}
+        {/* Valor unitário (R$/exame) — útil em spike/concentração, onde
+            o observed é volume e o valor total fica abstrato. Em
+            price-ratio o observed já é o ratio, então omitimos. */}
+        {kind !== 'price-ratio' && valor !== undefined && volume !== undefined && volume > 0 ? (
+          <Row label="Valor unitário" value={`${NF_BRL.format(valor / volume)}/exame`} />
+        ) : null}
       </div>
 
       <DetectorExtras details={details} kind={kind} />
