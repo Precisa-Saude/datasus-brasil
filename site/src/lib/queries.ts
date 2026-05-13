@@ -1,6 +1,7 @@
 import type { CompetenciaRange } from './aggregates';
-import { rawSiaPaUrl, UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
-import { queryAll, queryAllInterned, resetDuckDB } from './duckdb';
+import type { AnomalyHit, AnomalyKind } from './anomaly';
+import { anomaliesUrl, rawSiaPaUrl, UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
+import { queryAll } from './duckdb';
 import sigtapCatalog from './loinc-sigtap-catalog.generated.json';
 
 /**
@@ -214,94 +215,37 @@ export async function fetchTopUfsByVolume(n: number): Promise<string[]> {
  * por UF para comparação geográfica. Mesma fonte (`uf-totals.parquet`),
  * uma única requisição.
  */
-/**
- * Linhas (município × LOINC × competência) de uma UF, opcionalmente
- * filtradas por LOINC e/ou faixa de competências. Alimenta os
- * detectores em `lib/anomaly.ts`.
- *
- * O grain do parquet já é (município, LOINC, competência), então
- * NÃO há `GROUP BY` — devolvemos os fatos brutos pro JS rodar
- * spike/per-capita/concentração/preço. Pushdown via `WHERE` reduz a
- * leitura ao mínimo necessário.
- */
-export async function fetchAnomalyDataset(params: {
-  loinc?: string;
-  range?: CompetenciaRange;
-  ufSigla: string;
-}): Promise<MunicipioAggregateRow[]> {
-  const { loinc, range, ufSigla } = params;
-  assertSafe('ufSigla', ufSigla);
-  if (loinc !== undefined) assertSafe('loinc', loinc);
-  if (range !== undefined) {
-    assertSafe('competencia', range.from);
-    assertSafe('competencia', range.to);
-  }
-  const safeUf = ufSigla.replace(/'/g, "''");
-  const filters: string[] = [];
-  if (loinc !== undefined) filters.push(`loinc = '${loinc.replace(/'/g, "''")}'`);
-  if (range !== undefined) {
-    filters.push(
-      `competencia BETWEEN '${range.from.replace(/'/g, "''")}' AND '${range.to.replace(/'/g, "''")}'`,
-    );
-  }
-  const where = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-  // O dataset de anomalias é o maior consumidor de heap do site —
-  // múltiplos milhões de linhas com strings altamente repetidas
-  // (UF, competência, LOINC, nome de município se em modo nacional).
-  // `queryAllInterned` compartilha as instâncias dessas strings e
-  // corta heap em ~30-50% sem mudar o shape do retorno.
-  return queryAllInterned<MunicipioAggregateRow>(
-    `
-    SELECT
-      competencia,
-      loinc,
-      municipioCode,
-      municipioNome,
-      '${safeUf}' AS ufSigla,
-      CAST(volumeExames AS DOUBLE) AS volumeExames,
-      CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
-    FROM read_parquet('${ufPartitionUrl(ufSigla)}')
-    ${where}
-  `,
-    ['competencia', 'loinc', 'ufSigla', 'municipioNome'],
-  );
+
+export interface AnomaliesPayload {
+  /** ISO timestamp da geração do artefato (referência ao último refresh). */
+  generatedAt: string;
+  /** Top-N hits já ordenados por score desc, com sort secundário estável. */
+  hits: AnomalyHit[];
+  /** Detector que gerou esses hits. */
+  kind: AnomalyKind;
+  /** Cap aplicado (length de `hits`). */
+  topN: number;
+  /** Quantos hits o detector produziu antes do truncamento — útil pra
+   *  contextualizar "300 hits mostrados de 12.847 detectados". */
+  totalHitsBeforeCap: number;
 }
 
 /**
- * Versão multi-UF do `fetchAnomalyDataset` para o modo "Todos os
- * Estados" do explorador. Cada UF lê um parquet diferente — não dá
- * pra unificar em um único `read_parquet(['url1','url2',...])` porque
- * cada parquet não carrega a coluna `ufSigla` nele (a sigla é
- * particionada via path Hive); precisamos taggear UF a UF no
- * SELECT. Roda em paralelo por UF e concatena.
+ * Carrega o artefato pré-computado de atipicidades de um detector.
  *
- * Custo: ~27 HTTP Range Requests + bytes de cada parquet UF. O DuckDB
- * WASM mantém o pool de conexões interno; CloudFront cuida do cache.
- * Em redes razoáveis, primeira chamada termina em 10-30s; reabrir o
- * modo "todos" reaproveita cache de browser/CDN.
+ * Substitui o ciclo antigo de "puxar 270 MB de parquet × rodar
+ * detector em JS na main thread × estourar 1.2 GB de heap". Os
+ * arquivos vivem em `site/public/anomalies/{kind}.json`, pré-
+ * calculados pelo `scripts/compute-anomalies.ts` no refresh do
+ * pipeline. São pequenos (<200 KB cada) e parse é instantâneo.
  *
- * Após a materialização, reseta o DuckDB-WASM (`resetDuckDB`) pra
- * devolver ao sistema a memória dos parquets descomprimidos que o
- * pool interno mantinha — o detector roda 100% em JS sobre as linhas
- * já em heap, então o DB não precisa ficar de pé. Próxima query
- * reinicializa em ~100ms (bundle WASM já cacheado pelo browser).
+ * Os hits já vêm ordenados por score (com tiebreak estável). O
+ * explorador pagina/filtra client-side em cima dessa lista pequena.
  */
-export async function fetchAnomalyDatasetMulti(params: {
-  loinc?: string;
-  range?: CompetenciaRange;
-  ufSiglas: readonly string[];
-}): Promise<MunicipioAggregateRow[]> {
-  const { loinc, range, ufSiglas } = params;
-  if (ufSiglas.length === 0) return [];
-  try {
-    const results = await Promise.all(
-      ufSiglas.map((ufSigla) => fetchAnomalyDataset({ loinc, range, ufSigla })),
-    );
-    return results.flat();
-  } finally {
-    // Reseta mesmo em caso de erro — não vale manter o pool inflado.
-    void resetDuckDB();
-  }
+export async function fetchAnomalies(kind: AnomalyKind): Promise<AnomaliesPayload> {
+  const res = await fetch(anomaliesUrl(kind));
+  if (!res.ok) throw new Error(`Falha ao carregar anomalies/${kind} (${res.status}).`);
+  return (await res.json()) as AnomaliesPayload;
 }
 
 export interface CnesBreakdownRow {

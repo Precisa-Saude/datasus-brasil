@@ -8,41 +8,34 @@ import { Combobox } from '@/components/ui/combobox';
 import { SlidingToggle } from '@/components/ui/sliding-toggle';
 import type { AggregateIndex } from '@/lib/aggregates';
 import type { AnomalyHit, AnomalyKind } from '@/lib/anomaly';
-import {
-  detectConcentration,
-  detectPerCapitaOutliers,
-  detectPriceRatioOutliers,
-  detectTemporalSpikes,
-} from '@/lib/anomaly';
 import { MANIFEST_URL } from '@/lib/data-source';
 import type { PopulationDataset } from '@/lib/population';
 import { loadPopulation } from '@/lib/population';
-import type { MunicipioAggregateRow } from '@/lib/queries';
-import { fetchAnomalyDataset, fetchAnomalyDatasetMulti } from '@/lib/queries';
+import type { AnomaliesPayload } from '@/lib/queries';
+import { fetchAnomalies } from '@/lib/queries';
 
 /**
- * Página exploratória de "datapoints fora do padrão" nos agregados
- * SIA-PA. Roda três heurísticas no client sobre o parquet da UF
- * selecionada e devolve uma lista ranqueada de tuplas
- * `(município, competência, LOINC)` por score do detector.
+ * Explorador de atipicidades: lê os top-N hits pré-computados de cada
+ * detector (`compute-anomalies.ts` ⇒ `public/anomalies/{kind}.json`)
+ * e aplica filtros (UF, município, exame) client-side sobre listas
+ * pequenas (~500 hits por detector). Sem DuckDB-WASM, sem 270 MB de
+ * parquet em heap, sem cálculo bloqueando a main thread.
  *
- * O detector per-capita está documentado em `lib/anomaly.ts` mas não
- * é ativado aqui — depende de dataset de população IBGE que ainda
- * não foi ingerido. Quando o dataset existir, basta plugar o
- * `PopulationLookup` no `useMemo` abaixo.
+ * Os parâmetros dos detectores ficam fixos no pipeline — qualquer
+ * ajuste exige regenerar os artefatos via `pnpm build:anomalies`.
+ * População IBGE só é necessária pro tooltip per-capita (taxa
+ * relativa); o detector em si já rodou no pipeline.
  */
 const ALL_LOINCS = '__ALL__';
 const ALL_MUNICIPIOS = '__ALL__';
 const ALL_UFS = '__ALL__';
-
-type DetectorTabKey = 'concentration' | 'per-capita' | 'price-ratio' | 'spike';
 
 const DETECTOR_TABS = [
   { label: 'Pico temporal', value: 'spike' },
   { label: 'Per capita', value: 'per-capita' },
   { label: 'Concentração', value: 'concentration' },
   { label: 'Preço/exame', value: 'price-ratio' },
-] as const satisfies readonly { label: string; value: DetectorTabKey }[];
+] as const satisfies readonly { label: string; value: AnomalyKind }[];
 const PAGE_GRID_STYLE = {
   gridTemplateColumns: 'repeat(12, 1fr)',
   margin: '0 auto',
@@ -88,6 +81,9 @@ function formatValueForKind(kind: AnomalyKind): (v: number) => string {
   return (v: number) => NF_INT.format(v);
 }
 
+type PayloadCache = Partial<Record<AnomalyKind, AnomaliesPayload>>;
+type ErrorCache = Partial<Record<AnomalyKind, string>>;
+
 export default function Explore() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [manifest, setManifest] = useState<AggregateIndex | null>(null);
@@ -96,38 +92,31 @@ export default function Explore() {
   const [municipioCode, setMunicipioCode] = useState<string>(
     searchParams.get('mun') ?? ALL_MUNICIPIOS,
   );
-  const [detector, setDetector] = useState<DetectorTabKey>(() => {
+  const [detector, setDetector] = useState<AnomalyKind>(() => {
     const raw = searchParams.get('det');
     if (raw === 'concentration' || raw === 'price-ratio' || raw === 'per-capita') return raw;
     return 'spike';
   });
+
   const [population, setPopulation] = useState<null | PopulationDataset>(null);
-  const [rows, setRows] = useState<MunicipioAggregateRow[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [payloads, setPayloads] = useState<PayloadCache>({});
+  const [loadingKinds, setLoadingKinds] = useState<Set<AnomalyKind>>(new Set());
+  const [errors, setErrors] = useState<ErrorCache>({});
   const [error, setError] = useState<null | string>(null);
 
+  // Boot: carrega manifest + população IBGE (só pro tooltip per-capita).
   useEffect(() => {
     loadManifest().then(
-      (m) => {
-        setManifest(m);
-        // Default = ALL_UFS; mantém só se o usuário tiver fixado outra
-        // UF via search param.
-      },
+      (m) => setManifest(m),
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
-    // População é opcional pros outros detectores — falha silenciosa
-    // significa que a tab "Per capita" e o campo no tooltip mostram
-    // estado "indisponível", mas não bloqueiam o resto da página.
     loadPopulation().then(
       (p) => setPopulation(p),
       () => undefined,
     );
-    // Boot apenas no mount; mudanças subsequentes vêm dos selects.
   }, []);
 
-  // Sincroniza estado de volta na URL — permite compartilhar oddity.
-  // Omitimos `uf` quando o modo é "Todos os Estados" (default), pra
-  // manter a URL limpa no caso comum.
+  // URL sync — omite parâmetros no estado default pra manter URL limpa.
   useEffect(() => {
     if (!manifest) return;
     const next = new URLSearchParams();
@@ -138,86 +127,88 @@ export default function Explore() {
     setSearchParams(next, { replace: true });
   }, [manifest, ufSigla, loinc, municipioCode, detector, setSearchParams]);
 
-  // Fetch dataset quando UF ou LOINC mudam. Município é filtro
-  // client-side sobre os mesmos `rows` (já chegam por município),
-  // então não dispara nova GET S3.
-  // Para UF = "Todos os Estados", roda fetch em paralelo pra todas as
-  // UFs do manifesto e concatena — custa mais bytes, mas o detector
-  // de anomalias precisa ver a base nacional.
+  // Fetch lazy do artefato do detector ativo. Cada tab carrega seu
+  // JSON pré-computado uma vez e cacheia — trocar de tab vira instant
+  // depois do primeiro toque.
   useEffect(() => {
-    if (!manifest) return;
-    setLoading(true);
-    setError(null);
-    setRows(null);
-    const safeLoinc = loinc === ALL_LOINCS ? undefined : loinc;
-    const promise =
-      ufSigla === ALL_UFS
-        ? fetchAnomalyDatasetMulti({ loinc: safeLoinc, ufSiglas: manifest.availableUFs })
-        : fetchAnomalyDataset({ loinc: safeLoinc, ufSigla });
-    promise.then(
-      (data) => {
-        setRows(data);
-        setLoading(false);
+    if (payloads[detector] !== undefined || loadingKinds.has(detector)) return;
+    if (errors[detector] !== undefined) return;
+    setLoadingKinds((prev) => {
+      const next = new Set(prev);
+      next.add(detector);
+      return next;
+    });
+    fetchAnomalies(detector).then(
+      (payload) => {
+        setPayloads((prev) => ({ ...prev, [detector]: payload }));
+        setLoadingKinds((prev) => {
+          const next = new Set(prev);
+          next.delete(detector);
+          return next;
+        });
       },
       (e: unknown) => {
-        setError(e instanceof Error ? e.message : String(e));
-        setLoading(false);
+        setErrors((prev) => ({
+          ...prev,
+          [detector]: e instanceof Error ? e.message : String(e),
+        }));
+        setLoadingKinds((prev) => {
+          const next = new Set(prev);
+          next.delete(detector);
+          return next;
+        });
       },
     );
-  }, [manifest, ufSigla, loinc]);
+  }, [detector, payloads, loadingKinds, errors]);
 
-  // Reseta município quando a UF muda — a lista de municípios depende
-  // da UF, então o valor anterior pode não existir mais.
-  useEffect(() => {
-    setMunicipioCode(ALL_MUNICIPIOS);
-  }, [ufSigla]);
+  const payload = payloads[detector];
+  const loading = loadingKinds.has(detector);
+  const detectorError = errors[detector];
 
-  // Lista distinta de municípios derivada dos rows carregados.
-  // No modo "Todos os Estados", carrega UF junto pra desambiguar
-  // municípios com nome igual em UFs diferentes (Bom Jesus, etc.).
-  // Ordena alfabeticamente pela nomenclatura IBGE.
+  // Aplica filtros (UF / município / LOINC) sobre os hits pré-computados.
+  // Concentração mantém o `observed` apontando pro `share` em vez do
+  // volume bruto — o dumbbell e o axis label esperam isso.
+  const hits = useMemo<AnomalyHit[]>(() => {
+    if (!payload) return [];
+    const base =
+      detector === 'concentration'
+        ? payload.hits.map((h) => ({
+            ...h,
+            baseline: 0.2,
+            observed: h.details['share'] ?? 0,
+          }))
+        : payload.hits;
+    return base.filter((h) => {
+      if (ufSigla !== ALL_UFS && h.ufSigla !== ufSigla) return false;
+      if (loinc !== ALL_LOINCS && h.loinc !== loinc) return false;
+      if (municipioCode !== ALL_MUNICIPIOS && h.municipioCode !== municipioCode) return false;
+      return true;
+    });
+  }, [payload, detector, ufSigla, loinc, municipioCode]);
+
+  // Município dropdown: derivado dos hits do detector ativo. Só
+  // aparecem municípios que de fato têm atipicidade — UX honesta e
+  // o universo de opções é finito (≤500 entradas por tab).
   const municipios = useMemo<{ code: string; nome: string; ufSigla: string }[]>(() => {
-    if (!rows) return [];
+    if (!payload) return [];
     const seen = new Map<string, { nome: string; ufSigla: string }>();
-    for (const r of rows) {
-      if (!seen.has(r.municipioCode))
-        seen.set(r.municipioCode, { nome: r.municipioNome, ufSigla: r.ufSigla });
+    for (const h of payload.hits) {
+      if (ufSigla !== ALL_UFS && h.ufSigla !== ufSigla) continue;
+      if (!seen.has(h.municipioCode))
+        seen.set(h.municipioCode, { nome: h.municipioNome, ufSigla: h.ufSigla });
     }
     return Array.from(seen, ([code, info]) => ({ code, ...info })).sort((a, b) =>
       a.nome.localeCompare(b.nome, 'pt-BR'),
     );
-  }, [rows]);
+  }, [payload, ufSigla]);
 
-  // Rows filtrados pelo município (quando selecionado) — alimentam
-  // todos os detectores. Filtro local mantém a UI responsiva sem
-  // refetch do S3.
-  const filteredRows = useMemo<MunicipioAggregateRow[] | null>(() => {
-    if (!rows) return null;
-    if (municipioCode === ALL_MUNICIPIOS) return rows;
-    return rows.filter((r) => r.municipioCode === municipioCode);
-  }, [rows, municipioCode]);
+  // Reseta município quando UF muda — o conjunto disponível pode ter
+  // mudado.
+  useEffect(() => {
+    setMunicipioCode(ALL_MUNICIPIOS);
+  }, [ufSigla]);
 
-  // Hits do detector selecionado. Concentração precisa do `share`
-  // (do `details`) projetado como `observed` pro dumbbell.
-  // Concentração roda sempre sobre o dataset COMPLETO da UF (não filtrado
-  // por município) — senão o "total" do par (LOINC, competência)
-  // perde sentido (passaria a ser sempre 100% para o município único).
-  const hits = useMemo<AnomalyHit[]>(() => {
-    if (!filteredRows) return [];
-    if (detector === 'spike') return detectTemporalSpikes(filteredRows);
-    if (detector === 'price-ratio') return detectPriceRatioOutliers(filteredRows);
-    if (detector === 'per-capita') {
-      if (!population) return [];
-      return detectPerCapitaOutliers(filteredRows, population.lookup);
-    }
-    const base = rows ?? filteredRows;
-    return detectConcentration(base)
-      .filter((h) => (municipioCode === ALL_MUNICIPIOS ? true : h.municipioCode === municipioCode))
-      .map((h) => ({ ...h, baseline: 0.2, observed: h.details['share'] ?? 0 }));
-  }, [filteredRows, rows, detector, municipioCode, population]);
-
-  // Paginação — page (1-indexado) + pageSize por detector.
-  // Reseta page=1 quando o dataset bruto muda ou município muda.
+  // Reseta paginação quando filtros ou detector mudam.
   const [pageByKind, setPageByKind] = useState<Record<AnomalyKind, number>>({
     concentration: 1,
     'per-capita': 1,
@@ -231,16 +222,14 @@ export default function Explore() {
     spike: DEFAULT_PAGE_SIZE,
   });
   useEffect(() => {
-    setPageByKind({ concentration: 1, 'per-capita': 1, 'price-ratio': 1, spike: 1 });
-  }, [rows, municipioCode]);
+    setPageByKind((prev) => ({ ...prev, [detector]: 1 }));
+  }, [detector, ufSigla, municipioCode, loinc]);
 
-  // Linha expandida para detalhamento por CNES. Resetado sempre que o
-  // dataset, o município ou o detector mudam — não faz sentido manter
-  // seleção entre contextos diferentes.
+  // Linha expandida pra detalhamento por CNES. Reseta quando contexto muda.
   const [selectedHit, setSelectedHit] = useState<AnomalyHit | null>(null);
   useEffect(() => {
     setSelectedHit(null);
-  }, [rows, municipioCode, detector]);
+  }, [detector, ufSigla, municipioCode, loinc]);
 
   const biomarkersByLoinc = useMemo<Record<string, string>>(
     () =>
@@ -345,7 +334,7 @@ export default function Explore() {
           </label>
 
           <div className="col-span-full mt-2 flex justify-center">
-            <SlidingToggle<DetectorTabKey>
+            <SlidingToggle<AnomalyKind>
               items={DETECTOR_TABS}
               onChange={setDetector}
               value={detector}
@@ -356,11 +345,18 @@ export default function Explore() {
             {loading ? (
               <div className="text-muted-foreground flex h-[360px] items-center justify-center gap-3 font-sans text-sm">
                 <div className="border-muted-foreground/30 border-t-primary size-5 animate-spin rounded-full border-2" />
-                Calculando atipicidades…
+                Carregando atipicidades…
               </div>
             ) : null}
 
-            {!loading && rows && hits.length === 0 ? (
+            {detectorError !== undefined ? (
+              <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border p-4 font-sans text-sm">
+                <p className="font-medium">Não foi possível carregar este detector.</p>
+                <p className="mt-1 text-xs">{detectorError}</p>
+              </div>
+            ) : null}
+
+            {!loading && payload && hits.length === 0 ? (
               <div className="border-border bg-card flex h-[200px] items-center justify-center rounded-lg border p-6 text-center">
                 <p className="text-muted-foreground font-sans text-sm">
                   Nenhuma atipicidade encontrada com os filtros atuais. Tente outra UF, outro
@@ -369,7 +365,7 @@ export default function Explore() {
               </div>
             ) : null}
 
-            {!loading && hits.length > 0 ? (
+            {!loading && hits.length > 0 && payload ? (
               <>
                 <AnomalyDetectorTable
                   axisLabel={DETECTOR_AXIS_LABELS[detector]}
@@ -391,6 +387,13 @@ export default function Explore() {
                   selectedHitKey={selectedHit ? hitKey(selectedHit) : null}
                   title={DETECTOR_LABELS[detector]}
                 />
+                {payload.totalHitsBeforeCap > payload.topN ? (
+                  <p className="text-muted-foreground mt-2 font-sans text-[11px]">
+                    Mostrando os {payload.topN.toLocaleString('pt-BR')} hits de maior score
+                    (detector encontrou {payload.totalHitsBeforeCap.toLocaleString('pt-BR')} no
+                    total).
+                  </p>
+                ) : null}
                 {selectedHit ? (
                   <CnesBreakdown
                     hit={selectedHit}

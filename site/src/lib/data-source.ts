@@ -36,3 +36,11 @@ export function rawSiaPaUrl(ano: number, ufSigla: string, mes: number): string {
   const mesStr = String(mes).padStart(2, '0');
   return `${DATA_BASE_URL}/sia-pa/ano=${ano}/uf=${ufSigla}/mes=${mesStr}/part.parquet`;
 }
+
+// Artefatos pré-computados pelo `compute-anomalies.ts` — top-N hits
+// por detector. Ficam committed em `site/public/anomalies/` e são
+// regenerados a cada refresh do pipeline (semanal). Mesma origem que
+// o site (relative URL) — não usa CDN porque é parte do bundle.
+export function anomaliesUrl(kind: string): string {
+  return `/anomalies/${kind}.json`;
+}

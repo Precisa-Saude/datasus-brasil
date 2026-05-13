@@ -1,15 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/duckdb', () => ({
   queryAll: vi.fn(async () => []),
-  queryAllInterned: vi.fn(async () => []),
-  resetDuckDB: vi.fn(async () => undefined),
 }));
 
-import { queryAll, queryAllInterned, resetDuckDB } from '@/lib/duckdb';
+import { queryAll } from '@/lib/duckdb';
 import {
-  fetchAnomalyDataset,
-  fetchAnomalyDatasetMulti,
+  fetchAnomalies,
   fetchCnesBreakdown,
   fetchMunicipioAggregates,
   fetchTopLoincsByVolume,
@@ -21,16 +18,16 @@ import {
 } from '@/lib/queries';
 
 const queryAllMock = vi.mocked(queryAll);
-const queryAllInternedMock = vi.mocked(queryAllInterned);
-const resetDuckDBMock = vi.mocked(resetDuckDB);
+const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
 beforeEach(() => {
   queryAllMock.mockClear();
   queryAllMock.mockResolvedValue([]);
-  queryAllInternedMock.mockClear();
-  queryAllInternedMock.mockResolvedValue([]);
-  resetDuckDBMock.mockClear();
-  resetDuckDBMock.mockResolvedValue(undefined);
+  fetchSpy.mockReset();
+});
+
+afterEach(() => {
+  fetchSpy.mockReset();
 });
 
 describe('fetchUfAggregates', () => {
@@ -189,87 +186,61 @@ describe('fetchMunicipioAggregates', () => {
   });
 });
 
-describe('fetchAnomalyDataset', () => {
-  it('lê do parquet consolidado da UF sem filtros quando opcionais omitidos', async () => {
-    await fetchAnomalyDataset({ ufSigla: 'SP' });
-    const sql = queryAllInternedMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain('uf=SP/part.parquet');
-    expect(sql).not.toContain('WHERE');
-  });
-
-  it('intern em colunas de alta repetição', async () => {
-    await fetchAnomalyDataset({ ufSigla: 'SP' });
-    const cols = queryAllInternedMock.mock.calls[0]?.[1] ?? [];
-    expect(cols).toEqual(
-      expect.arrayContaining(['competencia', 'loinc', 'ufSigla', 'municipioNome']),
+describe('fetchAnomalies', () => {
+  it('busca o artefato pré-computado do detector via URL relativa', async () => {
+    const payload = {
+      generatedAt: '2026-05-12T20:00:00.000Z',
+      hits: [],
+      kind: 'spike' as const,
+      paramsDefault: true as const,
+      topN: 0,
+      totalHitsBeforeCap: 0,
+    };
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } }),
     );
+    const out = await fetchAnomalies('spike');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const url = fetchSpy.mock.calls[0]?.[0];
+    expect(String(url)).toBe('/anomalies/spike.json');
+    expect(out).toEqual(payload);
   });
 
-  it('aplica pushdown por LOINC e faixa de competências quando fornecidos', async () => {
-    await fetchAnomalyDataset({
-      loinc: '2160-0',
-      range: { from: '2023-01', to: '2024-12' },
-      ufSigla: 'SP',
-    });
-    const sql = queryAllInternedMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain("loinc = '2160-0'");
-    expect(sql).toContain("competencia BETWEEN '2023-01' AND '2024-12'");
-  });
-
-  it('rejeita uf, loinc e competência com caracteres fora do whitelist', async () => {
-    await expect(fetchAnomalyDataset({ ufSigla: "A'C" })).rejects.toThrow(/ufSigla/);
-    await expect(fetchAnomalyDataset({ loinc: "2160';--", ufSigla: 'SP' })).rejects.toThrow(
-      /loinc/,
+  it('propaga o status HTTP quando o artefato não existe', async () => {
+    // `Response` instances are single-use — usar implementação que
+    // gera uma resposta nova por chamada pra cada `expect` repetido.
+    fetchSpy.mockImplementation(
+      async () => new Response('', { status: 404, statusText: 'Not Found' }),
     );
-    await expect(
-      fetchAnomalyDataset({ range: { from: "2024'01", to: '2024-12' }, ufSigla: 'SP' }),
-    ).rejects.toThrow(/competencia/);
-    expect(queryAllInternedMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('fetchAnomalyDatasetMulti', () => {
-  it('devolve [] sem rodar nenhuma query quando ufSiglas é vazio', async () => {
-    const out = await fetchAnomalyDatasetMulti({ ufSiglas: [] });
-    expect(out).toEqual([]);
-    expect(queryAllInternedMock).not.toHaveBeenCalled();
-    expect(resetDuckDBMock).not.toHaveBeenCalled();
+    await expect(fetchAnomalies('concentration')).rejects.toThrow(/anomalies\/concentration/);
+    await expect(fetchAnomalies('concentration')).rejects.toThrow(/404/);
   });
 
-  it('dispara uma query por UF, concatena resultados e reseta o DuckDB no final', async () => {
-    queryAllInternedMock.mockImplementation(async (sql) => {
-      const match = /uf=([A-Z]{2})\//.exec(sql);
-      const uf = match ? match[1] : 'XX';
-      return [
-        {
-          competencia: '2024-01',
-          loinc: '2085-9',
-          municipioCode: `${uf}0001`,
-          municipioNome: `Mun-${uf}`,
-          ufSigla: uf,
-          volumeExames: 1,
-          valorAprovadoBRL: 1,
-        },
-      ];
-    });
-    const rows = await fetchAnomalyDatasetMulti({ ufSiglas: ['SP', 'RJ', 'MG'] });
-    expect(queryAllInternedMock).toHaveBeenCalledTimes(3);
-    expect(rows).toHaveLength(3);
-    expect(rows.map((r) => r.ufSigla).sort()).toEqual(['MG', 'RJ', 'SP']);
-    expect(resetDuckDBMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('propaga loinc para cada UF', async () => {
-    await fetchAnomalyDatasetMulti({ loinc: '2085-9', ufSiglas: ['SP', 'RJ'] });
-    const sqls = queryAllInternedMock.mock.calls.map((c) => c[0] ?? '');
-    expect(sqls).toHaveLength(2);
-    for (const sql of sqls) expect(sql).toContain("loinc = '2085-9'");
-  });
-
-  it('reseta o DuckDB mesmo quando uma UF falha (limpeza em finally)', async () => {
-    queryAllInternedMock.mockRejectedValueOnce(new Error('http 503'));
-    await expect(fetchAnomalyDatasetMulti({ ufSiglas: ['SP'] })).rejects.toThrow(/http 503/);
-    expect(resetDuckDBMock).toHaveBeenCalledTimes(1);
+  it('mapeia cada kind pra um endpoint distinto', async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            generatedAt: 'x',
+            hits: [],
+            kind: 'spike',
+            paramsDefault: true,
+            topN: 0,
+            totalHitsBeforeCap: 0,
+          }),
+        ),
+    );
+    await fetchAnomalies('spike');
+    await fetchAnomalies('concentration');
+    await fetchAnomalies('per-capita');
+    await fetchAnomalies('price-ratio');
+    const urls = fetchSpy.mock.calls.map((c) => String(c[0]));
+    expect(urls).toEqual([
+      '/anomalies/spike.json',
+      '/anomalies/concentration.json',
+      '/anomalies/per-capita.json',
+      '/anomalies/price-ratio.json',
+    ]);
   });
 });
 
