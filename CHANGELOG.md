@@ -1,3 +1,9 @@
+## [1.7.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.6.0...v1.7.0) (2026-05-13)
+
+### Features
+
+* **site:** visão "Todos os Estados" no explorador + pré-cômputo de atipicidades ([#39](https://github.com/Precisa-Saude/datasus-viz/issues/39)) ([a08bd4a](https://github.com/Precisa-Saude/datasus-viz/commit/a08bd4ad44c25cd3c50bc5a28b495e38086f30c3))
+
 ## [1.6.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.5.0...v1.6.0) (2026-05-12)
 
 ### Features
