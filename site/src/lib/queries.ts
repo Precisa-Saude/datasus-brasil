@@ -1,5 +1,6 @@
 import type { CompetenciaRange } from './aggregates';
-import { rawSiaPaUrl, UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
+import type { AnomalyHit, AnomalyKind } from './anomaly';
+import { anomaliesUrl, rawSiaPaUrl, UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
 import { queryAll } from './duckdb';
 import sigtapCatalog from './loinc-sigtap-catalog.generated.json';
 
@@ -214,49 +215,37 @@ export async function fetchTopUfsByVolume(n: number): Promise<string[]> {
  * por UF para comparação geográfica. Mesma fonte (`uf-totals.parquet`),
  * uma única requisição.
  */
+
+export interface AnomaliesPayload {
+  /** ISO timestamp da geração do artefato (referência ao último refresh). */
+  generatedAt: string;
+  /** Top-N hits já ordenados por score desc, com sort secundário estável. */
+  hits: AnomalyHit[];
+  /** Detector que gerou esses hits. */
+  kind: AnomalyKind;
+  /** Cap aplicado (length de `hits`). */
+  topN: number;
+  /** Quantos hits o detector produziu antes do truncamento — útil pra
+   *  contextualizar "300 hits mostrados de 12.847 detectados". */
+  totalHitsBeforeCap: number;
+}
+
 /**
- * Linhas (município × LOINC × competência) de uma UF, opcionalmente
- * filtradas por LOINC e/ou faixa de competências. Alimenta os
- * detectores em `lib/anomaly.ts`.
+ * Carrega o artefato pré-computado de atipicidades de um detector.
  *
- * O grain do parquet já é (município, LOINC, competência), então
- * NÃO há `GROUP BY` — devolvemos os fatos brutos pro JS rodar
- * spike/per-capita/concentração/preço. Pushdown via `WHERE` reduz a
- * leitura ao mínimo necessário.
+ * Substitui o ciclo antigo de "puxar 270 MB de parquet × rodar
+ * detector em JS na main thread × estourar 1.2 GB de heap". Os
+ * arquivos vivem em `site/public/anomalies/{kind}.json`, pré-
+ * calculados pelo `scripts/compute-anomalies.ts` no refresh do
+ * pipeline. São pequenos (<200 KB cada) e parse é instantâneo.
+ *
+ * Os hits já vêm ordenados por score (com tiebreak estável). O
+ * explorador pagina/filtra client-side em cima dessa lista pequena.
  */
-export async function fetchAnomalyDataset(params: {
-  loinc?: string;
-  range?: CompetenciaRange;
-  ufSigla: string;
-}): Promise<MunicipioAggregateRow[]> {
-  const { loinc, range, ufSigla } = params;
-  assertSafe('ufSigla', ufSigla);
-  if (loinc !== undefined) assertSafe('loinc', loinc);
-  if (range !== undefined) {
-    assertSafe('competencia', range.from);
-    assertSafe('competencia', range.to);
-  }
-  const safeUf = ufSigla.replace(/'/g, "''");
-  const filters: string[] = [];
-  if (loinc !== undefined) filters.push(`loinc = '${loinc.replace(/'/g, "''")}'`);
-  if (range !== undefined) {
-    filters.push(
-      `competencia BETWEEN '${range.from.replace(/'/g, "''")}' AND '${range.to.replace(/'/g, "''")}'`,
-    );
-  }
-  const where = filters.length > 0 ? `WHERE ${filters.join(' AND ')}` : '';
-  return queryAll<MunicipioAggregateRow>(`
-    SELECT
-      competencia,
-      loinc,
-      municipioCode,
-      municipioNome,
-      '${safeUf}' AS ufSigla,
-      CAST(volumeExames AS DOUBLE) AS volumeExames,
-      CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
-    FROM read_parquet('${ufPartitionUrl(ufSigla)}')
-    ${where}
-  `);
+export async function fetchAnomalies(kind: AnomalyKind): Promise<AnomaliesPayload> {
+  const res = await fetch(anomaliesUrl(kind));
+  if (!res.ok) throw new Error(`Falha ao carregar anomalies/${kind} (${res.status}).`);
+  return (await res.json()) as AnomaliesPayload;
 }
 
 export interface CnesBreakdownRow {

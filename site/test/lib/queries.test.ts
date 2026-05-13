@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/duckdb', () => ({
   queryAll: vi.fn(async () => []),
@@ -6,7 +6,7 @@ vi.mock('@/lib/duckdb', () => ({
 
 import { queryAll } from '@/lib/duckdb';
 import {
-  fetchAnomalyDataset,
+  fetchAnomalies,
   fetchCnesBreakdown,
   fetchMunicipioAggregates,
   fetchTopLoincsByVolume,
@@ -18,10 +18,16 @@ import {
 } from '@/lib/queries';
 
 const queryAllMock = vi.mocked(queryAll);
+const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
 beforeEach(() => {
   queryAllMock.mockClear();
   queryAllMock.mockResolvedValue([]);
+  fetchSpy.mockReset();
+});
+
+afterEach(() => {
+  fetchSpy.mockReset();
 });
 
 describe('fetchUfAggregates', () => {
@@ -180,34 +186,61 @@ describe('fetchMunicipioAggregates', () => {
   });
 });
 
-describe('fetchAnomalyDataset', () => {
-  it('lê do parquet consolidado da UF sem filtros quando opcionais omitidos', async () => {
-    await fetchAnomalyDataset({ ufSigla: 'SP' });
-    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain('uf=SP/part.parquet');
-    expect(sql).not.toContain('WHERE');
-  });
-
-  it('aplica pushdown por LOINC e faixa de competências quando fornecidos', async () => {
-    await fetchAnomalyDataset({
-      loinc: '2160-0',
-      range: { from: '2023-01', to: '2024-12' },
-      ufSigla: 'SP',
-    });
-    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
-    expect(sql).toContain("loinc = '2160-0'");
-    expect(sql).toContain("competencia BETWEEN '2023-01' AND '2024-12'");
-  });
-
-  it('rejeita uf, loinc e competência com caracteres fora do whitelist', async () => {
-    await expect(fetchAnomalyDataset({ ufSigla: "A'C" })).rejects.toThrow(/ufSigla/);
-    await expect(fetchAnomalyDataset({ loinc: "2160';--", ufSigla: 'SP' })).rejects.toThrow(
-      /loinc/,
+describe('fetchAnomalies', () => {
+  it('busca o artefato pré-computado do detector via URL relativa', async () => {
+    const payload = {
+      generatedAt: '2026-05-12T20:00:00.000Z',
+      hits: [],
+      kind: 'spike' as const,
+      paramsDefault: true as const,
+      topN: 0,
+      totalHitsBeforeCap: 0,
+    };
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } }),
     );
-    await expect(
-      fetchAnomalyDataset({ range: { from: "2024'01", to: '2024-12' }, ufSigla: 'SP' }),
-    ).rejects.toThrow(/competencia/);
-    expect(queryAllMock).not.toHaveBeenCalled();
+    const out = await fetchAnomalies('spike');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const url = fetchSpy.mock.calls[0]?.[0];
+    expect(String(url)).toBe('/anomalies/spike.json');
+    expect(out).toEqual(payload);
+  });
+
+  it('propaga o status HTTP quando o artefato não existe', async () => {
+    // `Response` instances are single-use — usar implementação que
+    // gera uma resposta nova por chamada pra cada `expect` repetido.
+    fetchSpy.mockImplementation(
+      async () => new Response('', { status: 404, statusText: 'Not Found' }),
+    );
+    await expect(fetchAnomalies('concentration')).rejects.toThrow(/anomalies\/concentration/);
+    await expect(fetchAnomalies('concentration')).rejects.toThrow(/404/);
+  });
+
+  it('mapeia cada kind pra um endpoint distinto', async () => {
+    fetchSpy.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            generatedAt: 'x',
+            hits: [],
+            kind: 'spike',
+            paramsDefault: true,
+            topN: 0,
+            totalHitsBeforeCap: 0,
+          }),
+        ),
+    );
+    await fetchAnomalies('spike');
+    await fetchAnomalies('concentration');
+    await fetchAnomalies('per-capita');
+    await fetchAnomalies('price-ratio');
+    const urls = fetchSpy.mock.calls.map((c) => String(c[0]));
+    expect(urls).toEqual([
+      '/anomalies/spike.json',
+      '/anomalies/concentration.json',
+      '/anomalies/per-capita.json',
+      '/anomalies/price-ratio.json',
+    ]);
   });
 });
 
