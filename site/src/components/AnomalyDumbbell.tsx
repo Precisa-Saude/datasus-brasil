@@ -22,6 +22,10 @@ import { AnomalyTooltip } from './AnomalyDumbbellTooltip';
 export interface AnomalyDumbbellProps {
   formatValue: (v: number) => string;
   hits: AnomalyHit[];
+  /** Índice da linha sob hover no grid pai. Quando definido, pinta
+   *  um strip de destaque atrás do conteúdo SVG correspondente, em
+   *  sincronia com o bg-muted das células HTML. */
+  hoveredRowIdx?: null | number;
   /** Detector — define a cor do dot observado. */
   kind: AnomalyKind;
   /** Resolução de LOINC → nome do exame pra exibir no tooltip. */
@@ -32,6 +36,10 @@ export interface AnomalyDumbbellProps {
   /** Altura por linha (px). Deve bater com a altura das cells HTML
    *  da tabela pra alinhar perfeitamente. */
   rowHeight: number;
+  /** Callback pra propagar hover do strip do gráfico pra linha
+   *  inteira no grid pai — assim hover na coluna do dumbbell
+   *  destaca cells 1-5 também, simétrico ao caminho oposto. */
+  onRowHover?: (idx: null | number) => void;
 }
 
 const KIND_COLORS: Record<AnomalyKind, string> = {
@@ -60,8 +68,10 @@ function niceTick(value: number): string {
 export function AnomalyDumbbell({
   formatValue,
   hits,
+  hoveredRowIdx,
   kind,
   labelForLoinc,
+  onRowHover,
   populationLookup,
   rowHeight,
 }: AnomalyDumbbellProps) {
@@ -141,13 +151,43 @@ export function AnomalyDumbbell({
 
   return (
     <div ref={containerRef} className="relative w-full">
+      {/* Highlight strip atrás do SVG — mantém sincronia com o
+          bg-muted/60 das células HTML quando o usuário passa o mouse
+          pelo grid pai. Pointer-events none pra não interferir com os
+          handlers do dumbbell. */}
+      {hoveredRowIdx !== null && hoveredRowIdx !== undefined && hoveredRowIdx < hits.length ? (
+        <div
+          className="bg-muted/60 pointer-events-none absolute left-0 right-0"
+          style={{ height: rowHeight, top: hoveredRowIdx * rowHeight }}
+        />
+      ) : null}
       <svg
         aria-label="Comparação entre baseline/mediana e valor observado"
+        className="relative"
         height={totalHeight}
         role="img"
         viewBox={`0 0 ${width} ${totalHeight}`}
         width={width}
       >
+        {/* Strip transparente por linha pra capturar hover na coluna
+            do dumbbell. Em par com os mouseEnter/Leave das cells
+            HTML, faz o destaque cobrir a linha inteira independente
+            de onde o ponteiro estiver. Renderizado primeiro pra ficar
+            atrás dos elementos visíveis do dumbbell. */}
+        {onRowHover
+          ? hits.map((_, idx) => (
+              <rect
+                fill="transparent"
+                height={rowHeight}
+                key={`row-hit-${idx}`}
+                onMouseEnter={() => onRowHover(idx)}
+                onMouseLeave={() => onRowHover(null)}
+                width={width}
+                x={0}
+                y={idx * rowHeight}
+              />
+            ))
+          : null}
         {/* Tick gridlines: linhas verticais ao longo de todas as rows */}
         {ticks.map((t, i) => {
           const x = xFor(t);

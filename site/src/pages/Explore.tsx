@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle } from '@precisa-saude/ui/primitives';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -394,13 +395,6 @@ export default function Explore() {
                     total).
                   </p>
                 ) : null}
-                {selectedHit ? (
-                  <CnesBreakdown
-                    hit={selectedHit}
-                    labelForLoinc={(l) => biomarkersByLoinc[l] ?? l}
-                    onClose={() => setSelectedHit(null)}
-                  />
-                ) : null}
               </>
             ) : null}
           </section>
@@ -413,6 +407,23 @@ export default function Explore() {
           <p className="mt-1 text-xs">{error}</p>
         </div>
       ) : null}
+
+      {/* Modal de detalhamento por CNES — disparado pela coluna CNES
+          do `AnomalyDetectorTable`. Mantém estado controlado pelo
+          `selectedHit`: setar abre, fechar limpa. */}
+      <Dialog onOpenChange={(open) => !open && setSelectedHit(null)} open={selectedHit !== null}>
+        <DialogContent
+          className="max-w-3xl"
+          // O `CnesBreakdown` já renderiza o título do contexto
+          // (município, UF, mês, exame) e a tabela; o DialogTitle fica
+          // visualmente oculto mas presente pro screen reader.
+        >
+          <DialogTitle className="sr-only">Detalhamento por estabelecimento (CNES)</DialogTitle>
+          {selectedHit ? (
+            <CnesBreakdown hit={selectedHit} labelForLoinc={(l) => biomarkersByLoinc[l] ?? l} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
