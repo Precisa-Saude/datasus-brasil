@@ -1,3 +1,9 @@
+## [1.7.1](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.0...v1.7.1) (2026-05-13)
+
+### Bug Fixes
+
+* **site:** integridade do drill-down do explorador e UX (linha, modal CNES, hover) ([#40](https://github.com/Precisa-Saude/datasus-viz/issues/40)) ([32dcbe1](https://github.com/Precisa-Saude/datasus-viz/commit/32dcbe1312eafce931c24b5f67bf60a7c835838e))
+
 ## [1.7.0](https://github.com/Precisa-Saude/datasus-viz/compare/v1.6.0...v1.7.0) (2026-05-13)
 
 ### Features
