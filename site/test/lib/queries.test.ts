@@ -9,11 +9,13 @@ import {
   fetchAnomalies,
   fetchCnesBreakdown,
   fetchMunicipioAggregates,
+  fetchMunicipioDetail,
   fetchTopLoincsByVolume,
   fetchTopUfsByVolume,
   fetchTrend,
   fetchTrendByUf,
   fetchUfAggregates,
+  fetchVolumeByCompetencia,
   sigtapsForLoinc,
 } from '@/lib/queries';
 
@@ -183,6 +185,51 @@ describe('fetchMunicipioAggregates', () => {
       fetchMunicipioAggregates('SP', { from: "2024'01", to: '2024-02' }),
     ).rejects.toThrow(/competencia/);
     expect(queryAllMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchMunicipioDetail', () => {
+  it('lê do Parquet consolidado da UF e filtra pelo prefixo de 6 dígitos', async () => {
+    await fetchMunicipioDetail('SP', '3501608');
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    expect(sql).toContain('uf=SP/part.parquet');
+    // PMTiles usa 7 dígitos, agregado SIA usa 6 — normaliza no
+    // WHERE com substr(..., 1, 6) dos dois lados.
+    expect(sql).toContain('substr(municipioCode, 1, 6)');
+    expect(sql).toContain("substr('3501608', 1, 6)");
+  });
+
+  it('injeta ufSigla como literal no SELECT', async () => {
+    await fetchMunicipioDetail('RJ', '330170');
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    expect(sql).toContain("'RJ' AS ufSigla");
+  });
+
+  it('rejeita uf e código com caracteres fora do whitelist', async () => {
+    await expect(fetchMunicipioDetail("S'P", '350000')).rejects.toThrow(/ufSigla/);
+    await expect(fetchMunicipioDetail('SP', "35'0000")).rejects.toThrow(/municipioCode/);
+    expect(queryAllMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchVolumeByCompetencia', () => {
+  it('agrega volume nacional por competência no parquet consolidado', async () => {
+    await fetchVolumeByCompetencia();
+    const sql = queryAllMock.mock.calls[0]?.[0] ?? '';
+    expect(sql).toContain('uf-totals.parquet');
+    expect(sql).toContain('GROUP BY competencia');
+    expect(sql).toContain('ORDER BY competencia');
+    expect(sql).toContain('CAST(SUM(volumeExames) AS DOUBLE)');
+  });
+
+  it('propaga as linhas retornadas pelo DuckDB', async () => {
+    queryAllMock.mockResolvedValueOnce([
+      { competencia: '2024-01', volumeExames: 1000 },
+      { competencia: '2024-02', volumeExames: 1100 },
+    ]);
+    const out = await fetchVolumeByCompetencia();
+    expect(out).toHaveLength(2);
+    expect(out[0]?.competencia).toBe('2024-01');
   });
 });
 

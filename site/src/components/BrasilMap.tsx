@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
 import type { BinTotals } from '@/lib/data-cube';
 import {
   addMapLayers,
+  applyMunicipioStatePatch,
   MUN_FILL,
   MUN_LAYER,
   pushMunicipioState,
@@ -257,38 +258,93 @@ export function BrasilMap(props: BrasilMapProps) {
     if (loadedRef.current) fitToUf(map, props.selectedUf, ufBoundsRef.current);
   }, [props.refitUfSignal, props.selectedUf]);
 
-  // Foco em município via código (ex.: clique na linha da tabela).
+  // Foco em município via código (ex.: clique na linha da tabela ou
+  // deep link `/uf/SP/mun/350390`). Em deep link, o `fitToUf` ainda
+  // está animando quando este effect roda, então a feature do
+  // município alvo pode não estar em viewport / em tile carregado e
+  // `querySourceFeatures` devolve []. Retry no `sourcedata` até a
+  // feature aparecer, mesma estratégia da reaplicação de feature-state
+  // logo abaixo. Cleanup do listener removido quando o effect
+  // re-roda (mudança de UF ou de código) ou quando o componente
+  // desmonta — evita listener pendente disparando focus em município
+  // errado depois.
   useEffect(() => {
     const map = mapRef.current;
     const codigo = props.focusMunCodigo;
     if (!map || !codigo || !props.selectedUf) return;
-    const run = (): void => focusMunicipio(map, codigo);
+    let listener: ((e: maplibregl.MapSourceDataEvent) => void) | null = null;
+    const tryFocus = (): boolean => focusMunicipio(map, codigo);
+    const run = (): void => {
+      if (tryFocus()) return;
+      listener = () => {
+        if (tryFocus() && listener) {
+          map.off('sourcedata', listener);
+          listener = null;
+        }
+      };
+      map.on('sourcedata', listener);
+    };
     if (loadedRef.current) run();
     else map.once('load', run);
+    return () => {
+      if (listener) {
+        map.off('sourcedata', listener);
+        listener = null;
+      }
+    };
   }, [props.focusMunCodigo, props.selectedUf]);
 
   // Reaplica feature-state municipal quando os totais mudam (faixa ou
-  // município) sem mexer em zoom/centro.
+  // município). O `pushMunicipioState` faz um wipe único e aplica
+  // state só nos municípios cujas features estão em viewport AGORA;
+  // os ausentes voltam pendentes no contexto. Continuamos patchando
+  // em cada `sourcedata` até cobrir todos os municípios — fix do bug
+  // onde Duque de Caxias (e outros) saíam com volume 0 no tooltip
+  // porque a feature carregou depois do primeiro setFeatureState.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !props.selectedUf || !props.municipioTotals) return;
     const totals = props.municipioTotals;
-    const tryApply = (): boolean => {
+    let patchHandler: ((e: maplibregl.MapSourceDataEvent) => void) | null = null;
+    const armPatching = (ctx: ReturnType<typeof pushMunicipioState>): void => {
+      if (ctx.pending.size === 0) return;
+      patchHandler = (e): void => {
+        // Só patcha quando o evento é do source dos polígonos — outros
+        // sources (basemap, etc.) não afetam o feature-state municipal.
+        if (e.sourceId !== SOURCE_ID) return;
+        applyMunicipioStatePatch(map, ctx);
+        if (ctx.pending.size === 0 && patchHandler) {
+          map.off('sourcedata', patchHandler);
+          patchHandler = null;
+        }
+      };
+      map.on('sourcedata', patchHandler);
+    };
+    const tryPush = (): boolean => {
       const f = map.querySourceFeatures(SOURCE_ID, { sourceLayer: MUN_LAYER });
       if (f.length === 0) return false;
-      pushMunicipioState(map, totals);
+      armPatching(pushMunicipioState(map, totals));
       return true;
     };
     const run = (): void => {
-      if (!tryApply()) {
-        const retry = (): void => {
-          if (tryApply()) map.off('sourcedata', retry);
+      if (!tryPush()) {
+        // Source ainda vazio — espera o primeiro batch de features
+        // antes de fazer o wipe + push inicial.
+        const initial = (e: maplibregl.MapSourceDataEvent): void => {
+          if (e.sourceId !== SOURCE_ID) return;
+          if (tryPush()) map.off('sourcedata', initial);
         };
-        map.on('sourcedata', retry);
+        map.on('sourcedata', initial);
       }
     };
     if (loadedRef.current) run();
     else map.once('load', run);
+    return () => {
+      if (patchHandler) {
+        map.off('sourcedata', patchHandler);
+        patchHandler = null;
+      }
+    };
   }, [props.selectedUf, props.municipioTotals]);
 
   return (
@@ -331,19 +387,31 @@ function fitToUf(
   }
 }
 
-function focusMunicipio(map: maplibregl.Map, codigo: string): void {
+/**
+ * Centraliza e dá zoom no município indicado. Devolve `true` quando
+ * achou a feature e disparou o `easeTo`, `false` quando o município
+ * ainda não está em tile carregado (caller deve retry). Filtramos o
+ * `querySourceFeatures` pelo `codarea` em vez de varrer todas as
+ * features renderizadas — bem mais barato e exato quando a UF inteira
+ * está populada.
+ */
+function focusMunicipio(map: maplibregl.Map, codigo: string): boolean {
   const key6 = codigo.slice(0, 6);
-  const features = map.querySourceFeatures(SOURCE_ID, { sourceLayer: MUN_LAYER });
-  const match = features.find((f) => String(f.properties?.codarea ?? '').slice(0, 6) === key6);
-  if (!match) return;
+  const features = map.querySourceFeatures(SOURCE_ID, {
+    filter: ['==', ['slice', ['to-string', ['get', 'codarea']], 0, 6], key6],
+    sourceLayer: MUN_LAYER,
+  });
+  const match = features[0];
+  if (!match) return false;
   const bounds = new maplibregl.LngLatBounds();
   extractCoords(match.geometry).forEach((c) => bounds.extend(c));
-  if (bounds.isEmpty()) return;
+  if (bounds.isEmpty()) return false;
   map.easeTo({
     center: bounds.getCenter(),
     duration: 600,
     zoom: Math.max(map.getZoom(), 10),
   });
+  return true;
 }
 
 function fitToBrazil(map: maplibregl.Map): void {

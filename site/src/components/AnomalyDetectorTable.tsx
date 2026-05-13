@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import type { AnomalyHit, AnomalyKind, PopulationLookup } from '@/lib/anomaly';
@@ -9,14 +9,18 @@ import { Pagination } from './ui/pagination';
 
 /**
  * Card de um detector — cabeçalho + tabela (Município | UF | Mês |
- * Exame | dumbbell SVG) + paginação. Extraído da página `Explore`
- * pra manter cada arquivo dentro dos limites de tamanho do ESLint
- * (max-lines / max-lines-per-function) e pra isolar o template do
- * grid em um só lugar.
+ * Exame | CNES | dumbbell SVG) + paginação. A linha inteira (colunas
+ * 1-4) é um link pro detalhe do município com janela de 1 mês exato;
+ * a coluna CNES tem um botão separado que dispara o modal de
+ * detalhamento por estabelecimento via `onHitSelect`.
  */
 
 const ROW_HEIGHT = 36;
-const GRID_TEMPLATE = 'minmax(140px, 1.4fr) auto auto minmax(140px, 1.6fr) minmax(320px, 2.4fr)';
+// 6 colunas: município (link) | UF | mês | exame | CNES (botão) | dumbbell.
+// As 4 primeiras são preenchidas pelo Link da linha; CNES e o
+// dumbbell ficam fora do alvo de clique pra navegação.
+const GRID_TEMPLATE =
+  'minmax(140px, 1.4fr) auto auto minmax(140px, 1.6fr) auto minmax(320px, 2.4fr)';
 
 const KIND_COLORS: Record<AnomalyKind, string> = {
   concentration: '#f59e0b',
@@ -43,9 +47,8 @@ export interface AnomalyDetectorTableProps {
   /** Lookup IBGE pra alimentar a row "População" do tooltip. `null` =
    *  dataset ainda não carregou (ou falhou). */
   populationLookup: null | PopulationLookup;
-  /** Hit atualmente expandido (renderizado em painel abaixo da tabela
-   *  pelo parent). A célula da competência ganha estado `aria-pressed`
-   *  pra indicar a seleção visualmente. */
+  /** Hit cujo modal de CNES está aberto. Usado pra `aria-pressed` no
+   *  botão da coluna CNES. */
   selectedHitKey?: null | string;
   title: string;
   onHitSelect?: (hit: AnomalyHit) => void;
@@ -56,6 +59,17 @@ export interface AnomalyDetectorTableProps {
 /** Chave canônica que identifica um hit dentro do tab atual. */
 export function hitKey(hit: AnomalyHit): string {
   return `${hit.municipioCode}::${hit.competencia}::${hit.loinc}`;
+}
+
+/**
+ * Monta o `?from=…&to=…` da janela de 1 mês exata correspondente ao
+ * hit. `from===to` é interpretado pelo `useCompetenciaRange` como
+ * janela de um único mês (BETWEEN inclusivo nos dois extremos), o
+ * que faz o painel de detalhe mostrar exatamente o volume daquela
+ * linha do explorador — sem somar o mês seguinte por engano.
+ */
+function hitDrilldownSearch(hit: AnomalyHit): string {
+  return `?from=${hit.competencia}&to=${hit.competencia}`;
 }
 
 export function AnomalyDetectorTable({
@@ -80,6 +94,11 @@ export function AnomalyDetectorTable({
   const isLog = isDumbbellLogScale(pageHits);
   const color = KIND_COLORS[kind];
 
+  // Hover compartilhado entre as 4 células do mesmo hit (link).
+  // CSS grid não casca o hover entre cells siblings sem JS — então
+  // rastreamos o índice da linha sob o mouse e cada cell consulta.
+  const [hoveredIdx, setHoveredIdx] = useState<null | number>(null);
+
   return (
     <div className="border-border bg-card rounded-lg border p-4 shadow-sm">
       <div className="mb-3 flex items-baseline justify-between gap-3">
@@ -97,78 +116,92 @@ export function AnomalyDetectorTable({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="grid min-w-[760px]" style={{ gridTemplateColumns: GRID_TEMPLATE }}>
+        <div className="grid min-w-[820px]" style={{ gridTemplateColumns: GRID_TEMPLATE }}>
           <HeaderCell>Município</HeaderCell>
           <HeaderCell>UF</HeaderCell>
           <HeaderCell>Mês</HeaderCell>
           <HeaderCell>Exame</HeaderCell>
+          <HeaderCell>CNES</HeaderCell>
           <HeaderCell className="flex items-baseline justify-between gap-2">
             <span>{axisLabel}</span>
             {isLog ? <span className="text-[10px] opacity-70">escala log</span> : null}
           </HeaderCell>
 
-          {pageHits.map((hit, idx) => (
-            <Fragment key={`${kind}-${hit.municipioCode}-${hit.competencia}-${hit.loinc}-${idx}`}>
-              <Cell>
-                <Link
-                  className="text-foreground hover:text-primary truncate font-medium transition-colors"
+          {pageHits.map((hit, idx) => {
+            const isHovered = hoveredIdx === idx;
+            const rowBg = isHovered ? 'bg-muted/60' : '';
+            const onEnter = (): void => setHoveredIdx(idx);
+            const onLeave = (): void => setHoveredIdx((prev) => (prev === idx ? null : prev));
+            const url = `/uf/${hit.ufSigla}/mun/${hit.municipioCode}${hitDrilldownSearch(hit)}`;
+            return (
+              <Fragment key={`${kind}-${hit.municipioCode}-${hit.competencia}-${hit.loinc}-${idx}`}>
+                <RowLinkCell
+                  bg={rowBg}
+                  onEnter={onEnter}
+                  onLeave={onLeave}
                   title={hit.municipioNome}
-                  to={`/uf/${hit.ufSigla}/mun/${hit.municipioCode}`}
+                  to={url}
                 >
-                  {hit.municipioNome}
-                </Link>
-              </Cell>
-              <Cell>
-                <span className="text-muted-foreground">{hit.ufSigla}</span>
-              </Cell>
-              <Cell>
-                {onHitSelect ? (
-                  <button
-                    aria-label={`Detalhar por estabelecimento — ${hit.municipioNome}, ${formatCompetencia(hit.competencia)}`}
-                    aria-pressed={selectedHitKey === hitKey(hit)}
-                    className={`tabular-nums whitespace-nowrap underline-offset-2 transition-colors hover:underline ${
-                      selectedHitKey === hitKey(hit)
-                        ? 'text-primary font-medium'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                    onClick={() => onHitSelect(hit)}
-                    type="button"
-                  >
-                    {formatCompetencia(hit.competencia)}
-                  </button>
-                ) : (
+                  <span className="text-foreground truncate font-medium">{hit.municipioNome}</span>
+                </RowLinkCell>
+                <RowLinkCell bg={rowBg} onEnter={onEnter} onLeave={onLeave} to={url}>
+                  <span className="text-muted-foreground">{hit.ufSigla}</span>
+                </RowLinkCell>
+                <RowLinkCell bg={rowBg} onEnter={onEnter} onLeave={onLeave} to={url}>
                   <span className="text-muted-foreground tabular-nums whitespace-nowrap">
                     {formatCompetencia(hit.competencia)}
                   </span>
-                )}
-              </Cell>
-              <Cell>
-                <span className="text-muted-foreground truncate" title={labelForLoinc(hit.loinc)}>
-                  {labelForLoinc(hit.loinc)}
-                </span>
-              </Cell>
-            </Fragment>
-          ))}
+                </RowLinkCell>
+                <RowLinkCell
+                  bg={rowBg}
+                  onEnter={onEnter}
+                  onLeave={onLeave}
+                  title={labelForLoinc(hit.loinc)}
+                  to={url}
+                >
+                  <span className="text-muted-foreground truncate">{labelForLoinc(hit.loinc)}</span>
+                </RowLinkCell>
+                <Cell className={rowBg} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+                  {onHitSelect ? (
+                    <button
+                      aria-label={`Ver detalhamento por estabelecimento — ${hit.municipioNome}, ${formatCompetencia(hit.competencia)}`}
+                      aria-pressed={selectedHitKey === hitKey(hit)}
+                      className={`text-primary hover:text-primary/80 rounded font-sans text-xs underline-offset-2 transition-colors hover:underline ${
+                        selectedHitKey === hitKey(hit) ? 'font-medium underline' : ''
+                      }`}
+                      onClick={() => onHitSelect(hit)}
+                      type="button"
+                    >
+                      Ver CNES
+                    </button>
+                  ) : null}
+                </Cell>
+              </Fragment>
+            );
+          })}
 
           {/* Chart column — spans data rows + tick row inside the SVG */}
           <div
             className="border-border/50 border-b"
             style={{
-              gridColumn: '5 / 6',
+              gridColumn: '6 / 7',
               gridRow: `2 / span ${pageHits.length + 1}`,
             }}
           >
             <AnomalyDumbbell
               formatValue={formatValue}
               hits={pageHits}
+              hoveredRowIdx={hoveredIdx}
               kind={kind}
               labelForLoinc={labelForLoinc}
+              onRowHover={setHoveredIdx}
               populationLookup={populationLookup}
               rowHeight={ROW_HEIGHT}
             />
           </div>
 
-          {/* Footer cells (col 1-4) pra balancear a row de ticks dentro do SVG */}
+          {/* Footer cells (col 1-5) pra balancear a row de ticks dentro do SVG */}
+          <Cell />
           <Cell />
           <Cell />
           <Cell />
@@ -198,13 +231,61 @@ function HeaderCell({ children, className }: { children?: React.ReactNode; class
   );
 }
 
-function Cell({ children, className }: { children?: React.ReactNode; className?: string }) {
+function Cell({
+  children,
+  className,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
   return (
     <div
-      className={`border-border/50 flex items-center overflow-hidden border-b px-3 font-sans text-xs ${className ?? ''}`}
+      className={`border-border/50 flex items-center overflow-hidden border-b px-3 font-sans text-xs transition-colors ${className ?? ''}`}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{ height: ROW_HEIGHT }}
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * Célula que é integralmente um link de navegação. Mantém a mesma
+ * altura/alinhamento do `Cell` mas o alvo de clique cobre a área
+ * inteira — clicar em qualquer parte da linha (col 1-4) navega pro
+ * município. O botão da coluna CNES fica fora do link e tem
+ * comportamento próprio.
+ */
+function RowLinkCell({
+  bg,
+  children,
+  onEnter,
+  onLeave,
+  title,
+  to,
+}: {
+  bg: string;
+  children: React.ReactNode;
+  onEnter: () => void;
+  onLeave: () => void;
+  title?: string;
+  to: string;
+}) {
+  return (
+    <Link
+      className={`border-border/50 hover:text-foreground flex items-center overflow-hidden border-b px-3 font-sans text-xs transition-colors ${bg}`}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      style={{ height: ROW_HEIGHT }}
+      title={title}
+      to={to}
+    >
+      {children}
+    </Link>
   );
 }

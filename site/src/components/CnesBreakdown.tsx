@@ -15,21 +15,20 @@ const NF_BRL = new Intl.NumberFormat('pt-BR', {
 export interface CnesBreakdownProps {
   hit: AnomalyHit;
   labelForLoinc: (loinc: string) => string;
-  onClose: () => void;
 }
 
 /**
- * Painel de detalhamento por estabelecimento (CNES) para uma tupla
+ * Conteúdo do detalhamento por estabelecimento (CNES) para uma tupla
  * (município × exame × competência). Consulta o parquet bruto SIA-PA
  * sob demanda — um Range Request, sem alterar o agregado consumido
  * pelo resto do site.
  *
- * Mostra o CNES bruto (7 dígitos). A resolução de nome do
- * estabelecimento depende do dataset CNES-ST, que ainda não é
- * publicado pelo `datasus-parquet`; quando estiver, plugar aqui sem
- * mudar a query.
+ * Renderizado dentro de um `Dialog` (modal) — não usa wrapper próprio
+ * de card/borda e não tem botão "Fechar" interno (o `DialogContent`
+ * já provê esses). Mostra o CNES bruto (7 dígitos); resolução do
+ * nome do estabelecimento depende do dataset CNES-ST.
  */
-export function CnesBreakdown({ hit, labelForLoinc, onClose }: CnesBreakdownProps) {
+export function CnesBreakdown({ hit, labelForLoinc }: CnesBreakdownProps) {
   const [rows, setRows] = useState<CnesBreakdownRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<null | string>(null);
@@ -65,25 +64,15 @@ export function CnesBreakdown({ hit, labelForLoinc, onClose }: CnesBreakdownProp
   const totalValor = rows?.reduce((acc, r) => acc + r.valorAprovadoBRL, 0) ?? 0;
 
   return (
-    <div className="border-border bg-card mt-3 rounded-lg border p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-sans text-sm font-semibold tracking-tight">
-            Distribuição por estabelecimento (CNES)
-          </h3>
-          <p className="text-muted-foreground mt-0.5 font-sans text-xs">
-            {hit.municipioNome} · {hit.ufSigla} · {formatCompetencia(hit.competencia)} ·{' '}
-            {labelForLoinc(hit.loinc)}
-          </p>
-        </div>
-        <button
-          aria-label="Fechar detalhamento"
-          className="text-muted-foreground hover:text-foreground font-sans text-xs transition-colors"
-          onClick={onClose}
-          type="button"
-        >
-          Fechar
-        </button>
+    <div>
+      <div className="mb-3">
+        <h3 className="font-sans text-sm font-semibold tracking-tight">
+          Distribuição por estabelecimento (CNES)
+        </h3>
+        <p className="text-muted-foreground mt-0.5 font-sans text-xs">
+          {hit.municipioNome} · {hit.ufSigla} · {formatCompetencia(hit.competencia)} ·{' '}
+          {labelForLoinc(hit.loinc)}
+        </p>
       </div>
 
       {loading ? (

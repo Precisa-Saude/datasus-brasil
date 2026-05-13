@@ -42,6 +42,25 @@ describe('useCompetenciaRange', () => {
     expect(result.current.range).toEqual({ from: '2023-06', to: '2023-09' });
   });
 
+  it('aceita janela de 1 mês exato (from === to) — não cai no default', () => {
+    // Caso real do PR #40: clicar uma linha do explorador gera
+    // `?from=YYYY-MM&to=YYYY-MM` pra mostrar exatamente o volume
+    // daquela linha. Antes a validação era `<` estrito e o range
+    // colapsado caía no default de 12 meses; agora é `<=`.
+    const { result } = renderHook(() => useCompetenciaRange(COMPETENCIAS), {
+      wrapper: wrapper(['/?from=2023-07&to=2023-07']),
+    });
+    expect(result.current.range).toEqual({ from: '2023-07', to: '2023-07' });
+  });
+
+  it('cai no default quando from > to (range invertido é inválido)', () => {
+    const { result } = renderHook(() => useCompetenciaRange(COMPETENCIAS), {
+      wrapper: wrapper(['/?from=2023-09&to=2023-06']),
+    });
+    // 12 meses defaults — não passa o range invertido.
+    expect(result.current.range).toEqual({ from: '2023-03', to: '2024-02' });
+  });
+
   it('compat: ?competencia=YYYY-MM vira faixa de 2 meses terminando no mês pedido', () => {
     const { result } = renderHook(() => useCompetenciaRange(COMPETENCIAS), {
       wrapper: wrapper(['/?competencia=2023-06']),

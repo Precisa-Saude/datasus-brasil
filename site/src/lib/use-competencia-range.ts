@@ -50,7 +50,11 @@ export function useCompetenciaRange(competencias: string[] | undefined): Compete
 
     const fromOk = fromParam && competencias.includes(fromParam) ? fromParam : null;
     const toOk = toParam && competencias.includes(toParam) ? toParam : null;
-    if (fromOk && toOk && fromOk < toOk) return { from: fromOk, to: toOk };
+    // `<=` permite janela de um único mês (deep-link de uma linha
+    // específica do explorador, ex.: `?from=2020-11&to=2020-11`).
+    // O cubo `lookupRange` lida com from===to naturalmente — basta a
+    // validação de range deixar passar.
+    if (fromOk && toOk && fromOk <= toOk) return { from: fromOk, to: toOk };
     return defaultRange;
   }, [competencias, fromParam, toParam, competenciaParam]);
 
