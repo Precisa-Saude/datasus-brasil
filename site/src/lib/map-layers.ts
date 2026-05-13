@@ -180,10 +180,77 @@ export function pushUfState(map: maplibregl.Map, byUf: Map<string, BinTotals>): 
  * e aplicar feature-state só nos que batem com o agregado (6 dígitos
  * do municipioCode do SIA, comparado contra `codarea.slice(0,6)`).
  */
-export function pushMunicipioState(map: maplibregl.Map, byMunicipio: Map<string, BinTotals>): void {
-  // PMTiles usa `codarea` de 7 dígitos, agregados de SIA usam 6 ou 7;
-  // o cubo veio com a chave do agregado, aqui re-chaveamos por prefixo
-  // de 6 dígitos pra casar com `codarea.slice(0,6)` no map.
+export interface MunicipioStatePush {
+  /** Snapshot pré-calculado dos agregados por município. Reaproveitado
+   *  pelas chamadas de patch — não precisa recalcular ranks/max em
+   *  cada `sourcedata`. */
+  byMun: Map<string, { municipioNome: string; valor: number; volume: number }>;
+  max: number;
+  /** Chaves (`codarea[0..6]`) que ainda não tiveram `setFeatureState`
+   *  aplicada porque a feature correspondente não estava em viewport
+   *  no momento da chamada. O caller deve revisitar via `sourcedata` e
+   *  chamar `applyMunicipioStatePatch` até esvaziar este set — só
+   *  assim o tooltip e a paleta cobrem os municípios que entraram
+   *  depois (zoom/pan/tile load tardio). */
+  pending: Set<string>;
+  ranks: Map<string, number>;
+  total: number;
+}
+
+function setStateFor(
+  map: maplibregl.Map,
+  id: number | string,
+  key6: string,
+  ctx: MunicipioStatePush,
+): void {
+  const agg = ctx.byMun.get(key6);
+  if (!agg) return;
+  map.setFeatureState(
+    { id, source: SOURCE_ID, sourceLayer: MUN_LAYER },
+    {
+      municipio: agg.municipioNome,
+      normalizado: sqrtNormalize(agg.volume, ctx.max),
+      rank: ctx.ranks.get(key6) ?? null,
+      rankTotal: ctx.total,
+      valor: agg.valor,
+      volume: agg.volume,
+    },
+  );
+}
+
+function applyVisible(map: maplibregl.Map, ctx: MunicipioStatePush): void {
+  if (ctx.pending.size === 0) return;
+  const features = map.querySourceFeatures(SOURCE_ID, {
+    sourceLayer: MUN_LAYER,
+    validate: false,
+  });
+  for (const f of features) {
+    const codarea = String(f.properties?.codarea ?? f.id ?? '');
+    if (codarea.length < 6 || f.id === undefined || f.id === null) continue;
+    const key6 = codarea.slice(0, 6);
+    if (!ctx.pending.has(key6)) continue;
+    setStateFor(map, f.id, key6, ctx);
+    ctx.pending.delete(key6);
+  }
+}
+
+/**
+ * Empurra o agregado municipal corrente pro feature-state do mapa.
+ * Faz um wipe único (`removeFeatureState`) e aplica state nos
+ * municípios cujas features estão em viewport agora. Devolve um
+ * `MunicipioStatePush` com o set de chaves ainda pendentes pra ser
+ * patchado depois via `applyMunicipioStatePatch` — features que vão
+ * carregar conforme o usuário panar/zoomar ou tiles atrasados
+ * chegarem.
+ *
+ * Estrutura PMTiles: `codarea` 7 díg., agregado SIA 6 ou 7; chave
+ * canônica é o prefixo de 6 (`codarea.slice(0,6)`), conforme
+ * convenção existente no projeto.
+ */
+export function pushMunicipioState(
+  map: maplibregl.Map,
+  byMunicipio: Map<string, BinTotals>,
+): MunicipioStatePush {
   const byMun = new Map<string, { municipioNome: string; valor: number; volume: number }>();
   let max = 1;
   for (const v of byMunicipio.values()) {
@@ -194,34 +261,26 @@ export function pushMunicipioState(map: maplibregl.Map, byMunicipio: Map<string,
     byMun.set(key6, prev);
     if (prev.volume > max) max = prev.volume;
   }
-
   const ranks = rankByVolume(byMun);
-  const total = byMun.size;
+  const ctx: MunicipioStatePush = {
+    byMun,
+    max,
+    pending: new Set(byMun.keys()),
+    ranks,
+    total: byMun.size,
+  };
+  // Wipe stale state UMA vez — chamadas subsequentes de `applyMunicipioStatePatch`
+  // só adicionam (idempotente: setFeatureState com mesmo id sobrescreve).
   map.removeFeatureState({ source: SOURCE_ID, sourceLayer: MUN_LAYER });
-  const features = map.querySourceFeatures(SOURCE_ID, {
-    sourceLayer: MUN_LAYER,
-    validate: false,
-  });
-  const idByKey6 = new Map<string, number | string>();
-  for (const f of features) {
-    const codarea = String(f.properties?.codarea ?? f.id ?? '');
-    if (codarea.length >= 6 && f.id !== undefined && f.id !== null) {
-      idByKey6.set(codarea.slice(0, 6), f.id);
-    }
-  }
-  for (const [key6, agg] of byMun) {
-    const id = idByKey6.get(key6);
-    if (id === undefined) continue;
-    map.setFeatureState(
-      { id, source: SOURCE_ID, sourceLayer: MUN_LAYER },
-      {
-        municipio: agg.municipioNome,
-        normalizado: sqrtNormalize(agg.volume, max),
-        rank: ranks.get(key6) ?? null,
-        rankTotal: total,
-        valor: agg.valor,
-        volume: agg.volume,
-      },
-    );
-  }
+  applyVisible(map, ctx);
+  return ctx;
+}
+
+/**
+ * Continua aplicando state nos municípios que ainda estão pending no
+ * `ctx`, lendo features que entraram em viewport desde a última
+ * chamada. Idempotente: chamar de novo após o set esvaziar é no-op.
+ */
+export function applyMunicipioStatePatch(map: maplibregl.Map, ctx: MunicipioStatePush): void {
+  applyVisible(map, ctx);
 }
