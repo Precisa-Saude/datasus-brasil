@@ -15,10 +15,10 @@ import { runSia, SIA_USAGE } from './commands/sia.js';
 const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
 export const VERSION = (JSON.parse(readFileSync(pkgPath, 'utf8')) as { version: string }).version;
 
-export const ROOT_USAGE = `datasus-brasil — CLI para microdados DATASUS
+export const ROOT_USAGE = `datasus-viz — CLI para microdados DATASUS
 
 Uso:
-  datasus-brasil <comando> [flags]
+  datasus-viz <comando> [flags]
 
 Comandos:
   cnes     Top tipos de estabelecimento de saúde (CNES-ST).
@@ -34,9 +34,9 @@ Flags de subset (todos os comandos):
   --raw        Emite registros brutos do DATASUS (JSONL default).
 
 Exemplos:
-  datasus-brasil cnes --uf AC --year 2024 --month 1
-  datasus-brasil cnes --uf AC --year 2024 --month 1 --labeled --limit 3
-  datasus-brasil cnes --uf SP --year 2024 --month 1 --raw --format jsonl
+  datasus-viz cnes --uf AC --year 2024 --month 1
+  datasus-viz cnes --uf AC --year 2024 --month 1 --labeled --limit 3
+  datasus-viz cnes --uf SP --year 2024 --month 1 --raw --format jsonl
 
 Ver '<comando> --help' para detalhes de cada comando.`;
 
@@ -74,7 +74,7 @@ export async function dispatch(argv: string[]): Promise<DispatchResult> {
     default:
       if (command.startsWith('-')) {
         throw new UsageError(
-          `Flags devem vir depois do comando. Uso: datasus-brasil <comando> [flags] (recebido: '${command}')`,
+          `Flags devem vir depois do comando. Uso: datasus-viz <comando> [flags] (recebido: '${command}')`,
         );
       }
       throw new UsageError(`Comando desconhecido: '${command}'`);

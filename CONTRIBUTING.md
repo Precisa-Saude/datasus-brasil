@@ -1,6 +1,6 @@
 # Contribuindo
 
-Obrigado pelo interesse em contribuir com o datasus-brasil!
+Obrigado pelo interesse em contribuir com o datasus-viz!
 
 ## Como Contribuir
 

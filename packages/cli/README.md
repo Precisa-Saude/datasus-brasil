@@ -5,10 +5,10 @@ CLI para microdados DATASUS — download, decodificação e agregação com saí
 ## Comandos
 
 ```bash
-datasus-brasil cnes --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw|--labeled] [--format json|jsonl]
+datasus-viz cnes --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw|--labeled] [--format json|jsonl]
 ```
 
-Use `datasus-brasil <comando> --help` para detalhes de cada comando.
+Use `datasus-viz <comando> --help` para detalhes de cada comando.
 
 **Flags de subset** (todos os comandos):
 
@@ -28,7 +28,7 @@ pnpm turbo run build --filter=@precisa-saude/datasus-cli
 node packages/cli/dist/index.js cnes --uf AC --year 2024 --month 1
 
 # via pnpm exec (usa a bin registrada no workspace)
-pnpm exec datasus-brasil cnes --uf AC --year 2024 --month 1
+pnpm exec datasus-viz cnes --uf AC --year 2024 --month 1
 
 # modo dev (tsx, sem build)
 pnpm -F @precisa-saude/datasus-cli dev cnes --uf AC --year 2024 --month 1
@@ -38,7 +38,7 @@ Para linkar globalmente (opcional):
 
 ```bash
 pnpm -F @precisa-saude/datasus-cli link --global
-datasus-brasil --help
+datasus-viz --help
 ```
 
 ## Saída
@@ -47,7 +47,7 @@ JSON-first. Stdout recebe o resultado, stderr recebe progresso de download (barr
 
 ### CNES — top tipos de estabelecimento
 
-`datasus-brasil cnes --uf AC --year 2024 --month 1 --top 5` agrega por `TP_UNID` com label pt-BR:
+`datasus-viz cnes --uf AC --year 2024 --month 1 --top 5` agrega por `TP_UNID` com label pt-BR:
 
 ```json
 [
@@ -61,7 +61,7 @@ JSON-first. Stdout recebe o resultado, stderr recebe progresso de download (barr
 
 ### JSONL — uma linha por registro
 
-`datasus-brasil cnes --uf AC --year 2024 --month 1 --top 3 --format jsonl`:
+`datasus-viz cnes --uf AC --year 2024 --month 1 --top 3 --format jsonl`:
 
 ```
 {"count":521,"key":"Pronto Socorro Especializado"}
@@ -71,7 +71,7 @@ JSON-first. Stdout recebe o resultado, stderr recebe progresso de download (barr
 
 ### `--labeled` — estabelecimentos decodificados em pt-BR
 
-`datasus-brasil cnes --uf AC --year 2024 --month 1 --labeled --limit 1 --format json` projeta cada registro via `labelEstabelecimento`, emitindo tipo, gestão, natureza jurídica, leitos agregados, etc. — tudo legível:
+`datasus-viz cnes --uf AC --year 2024 --month 1 --labeled --limit 1 --format json` projeta cada registro via `labelEstabelecimento`, emitindo tipo, gestão, natureza jurídica, leitos agregados, etc. — tudo legível:
 
 ```json
 [
@@ -107,20 +107,20 @@ JSON-first. Stdout recebe o resultado, stderr recebe progresso de download (barr
 
 ### `--raw` — registros brutos
 
-`datasus-brasil cnes --uf AC --year 2024 --month 1 --raw --limit 1` emite cada registro CNES-ST completo como JSONL (uma linha, 150+ campos DATASUS com códigos). Usa-se pra inspecionar schema ou alimentar pipelines externos.
+`datasus-viz cnes --uf AC --year 2024 --month 1 --raw --limit 1` emite cada registro CNES-ST completo como JSONL (uma linha, 150+ campos DATASUS com códigos). Usa-se pra inspecionar schema ou alimentar pipelines externos.
 
 ### Pipeline com `jq`
 
 ```bash
 # só o estabelecimento top
-datasus-brasil cnes --uf SP --year 2024 --month 1 | jq '.[0]'
+datasus-viz cnes --uf SP --year 2024 --month 1 | jq '.[0]'
 
 # filtrar CNES-ST por tipo específico em streaming
-datasus-brasil cnes --uf SP --year 2024 --month 1 --raw \
+datasus-viz cnes --uf SP --year 2024 --month 1 --raw \
   | jq -c 'select(.TP_UNID == "01") | {cnes: .CNES, nome: .FANTASIA}'
 
 # contagem por gestão a partir do modo labeled
-datasus-brasil cnes --uf SP --year 2024 --month 1 --labeled \
+datasus-viz cnes --uf SP --year 2024 --month 1 --labeled \
   | jq -s 'group_by(.gestao.rotulo) | map({gestao: .[0].gestao.rotulo, count: length})'
 ```
 
@@ -148,4 +148,4 @@ Cache hit (arquivo já baixado): uma linha única e imediata:
 CNES-ST AC/2024/01 (cache, 60.6 KB)
 ```
 
-O cache mora em `$XDG_CACHE_HOME/datasus-brasil` (ou `~/.cache/datasus-brasil` como fallback), preservando a estrutura do FTP. Para forçar re-download, apague o arquivo.
+O cache mora em `$XDG_CACHE_HOME/datasus-viz` (ou `~/.cache/datasus-viz` como fallback), preservando a estrutura do FTP. Para forçar re-download, apague o arquivo.

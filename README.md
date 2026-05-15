@@ -29,7 +29,7 @@ Precisa Saúde. Para cada responsabilidade existe um repo dedicado:
 - **`site`** — site Vite/React + MapLibre GL JS + DuckDB WASM com
   choropleth de biomarcadores laboratoriais por competência, com drill-down
   UF → município. Consome `parquet-opt/` derivado do arquivo público.
-- **`packages/cli`** — CLI `datasus-brasil` (nome histórico preservado para
+- **`packages/cli`** — CLI `datasus-viz` (nome histórico preservado para
   compatibilidade) para exploração ad-hoc de SIA-PA e CNES-ST com saída
   JSON/JSONL. Útil para análises pontuais sem abrir o navegador.
 
@@ -43,10 +43,10 @@ repo consome `@precisa-saude/datasus-dbc@^2.0.0` e
 
 ```bash
 npm install -g @precisa-saude/datasus-cli
-datasus-brasil --help
+datasus-viz --help
 ```
 
-A CLI conserva o nome histórico `datasus-brasil` para evitar quebrar
+A CLI conserva o nome histórico `datasus-viz` para evitar quebrar
 scripts existentes.
 
 ---
@@ -72,20 +72,20 @@ pipeline de dados e deployment.
 ### Help
 
 ```bash
-datasus-brasil --help
+datasus-viz --help
 ```
 
 ### SIA-PA (produção ambulatorial)
 
 ```bash
 # Top 10 procedimentos em laboratório com LOINC, em AC, jan/2024
-datasus-brasil sia --uf AC --year 2024 --month 1 --laboratory --enrich-loinc --top 10
+datasus-viz sia --uf AC --year 2024 --month 1 --laboratory --enrich-loinc --top 10
 ```
 
 ### CNES-ST (cadastro de estabelecimentos)
 
 ```bash
-datasus-brasil cnes --uf AC --year 2024 --month 1 --top 5
+datasus-viz cnes --uf AC --year 2024 --month 1 --top 5
 ```
 
 Todas as flags e formatos em [`packages/cli/README.md`](packages/cli/README.md).
@@ -119,7 +119,7 @@ Todas as flags e formatos em [`packages/cli/README.md`](packages/cli/README.md).
 
 A CLI e o site (via SDK) reutilizam cache local de arquivos DBC:
 
-- `$XDG_CACHE_HOME/datasus-brasil/...` (ou `~/.cache/datasus-brasil/...`)
+- `$XDG_CACHE_HOME/datasus-viz/...` (ou `~/.cache/datasus-viz/...`)
 - Estrutura idêntica ao FTP oficial; reexecuções hitam cache sem rede.
 
 ---

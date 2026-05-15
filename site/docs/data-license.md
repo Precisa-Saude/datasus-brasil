@@ -80,17 +80,17 @@ produzimos.
 
 Em publicações acadêmicas (formato ABNT):
 
-> PRECISA SAÚDE. **datasus-brasil — Agregados SIA-PA**. Versão
+> PRECISA SAÚDE. **datasus-viz — Agregados SIA-PA**. Versão
 > `dataset-YYYY-MM`. São Paulo: Precisa Saúde, 2026. Derivado do
 > SIA-SUS Produção Ambulatorial (DATASUS, Ministério da Saúde). DOI:
 > `10.5281/zenodo.XXXXX`. Disponível em:
-> https://github.com/Precisa-Saude/datasus-brasil/releases/tag/dataset-YYYY-MM.
+> https://github.com/Precisa-Saude/datasus-viz/releases/tag/dataset-YYYY-MM.
 > Acesso em: YYYY-MM-DD.
 
 Em citações informais / READMEs de outros projetos:
 
 > Dados: SIA-SUS/DATASUS (fonte original), agregados por
-> `precisa-saude/datasus-brasil` sob CC-BY 4.0.
+> `precisa-saude/datasus-viz` sob CC-BY 4.0.
 
 O arquivo `CITATION.cff` na raiz do repositório contém a versão
 estruturada (compatível com Zenodo, Zotero, GitHub "Cite this

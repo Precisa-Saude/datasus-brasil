@@ -22,7 +22,7 @@ separados — ver README.
 
 ```
 packages/
-  cli/     → @precisa-saude/datasus-cli   (CLI `datasus-brasil`, consome datasus-sdk via npm)
+  cli/     → @precisa-saude/datasus-cli   (CLI `datasus-viz`, consome datasus-sdk via npm)
 site/      → @datasus-viz/site            (Vite + React + MapLibre + DuckDB WASM)
 ```
 
