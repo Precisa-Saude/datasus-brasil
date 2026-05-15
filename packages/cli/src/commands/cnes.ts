@@ -1,5 +1,5 @@
 /**
- * `datasus-brasil cnes` — baixa CNES-ST (estabelecimentos) UF × ano × mês
+ * `datasus-viz cnes` — baixa CNES-ST (estabelecimentos) UF × ano × mês
  * em streaming.
  *
  * Modos:
@@ -22,7 +22,7 @@ import {
   parseStreamOptions,
 } from '../stream.js';
 
-export const CNES_USAGE = `datasus-brasil cnes --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw|--labeled] [--format json|jsonl]
+export const CNES_USAGE = `datasus-viz cnes --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw|--labeled] [--format json|jsonl]
 
   Baixa CNES-ST (estabelecimentos) em streaming.
 
@@ -43,9 +43,9 @@ export const CNES_USAGE = `datasus-brasil cnes --uf <UF> --year <YYYY> --month <
     --format   json (default) ou jsonl. --raw/--labeled defaultam para jsonl.
 
   Exemplos:
-    datasus-brasil cnes --uf AC --year 2024 --month 1
-    datasus-brasil cnes --uf AC --year 2024 --month 1 --labeled --limit 3
-    datasus-brasil cnes --uf SP --year 2024 --month 1 --raw --limit 20`;
+    datasus-viz cnes --uf AC --year 2024 --month 1
+    datasus-viz cnes --uf AC --year 2024 --month 1 --labeled --limit 3
+    datasus-viz cnes --uf SP --year 2024 --month 1 --raw --limit 20`;
 
 export async function runCnes(args: ParsedArgs): Promise<void> {
   const uf = requireOpt(args, 'uf');

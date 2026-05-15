@@ -44,7 +44,7 @@ describe('dispatch', () => {
 
   it('retorna ajuda de subcomando com cnes --help', async () => {
     const result = await dispatch(['cnes', '--help']);
-    expect(result.message).toContain('datasus-brasil cnes');
+    expect(result.message).toContain('datasus-viz cnes');
   });
 
   it('lança UsageError para comando desconhecido', async () => {

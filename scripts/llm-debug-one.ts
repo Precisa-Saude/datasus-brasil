@@ -85,8 +85,8 @@ const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
   headers: {
     Authorization: `Bearer ${API_KEY}`,
     'Content-Type': 'application/json',
-    'HTTP-Referer': 'https://github.com/Precisa-Saude/datasus-brasil',
-    'X-Title': 'datasus-brasil debug',
+    'HTTP-Referer': 'https://github.com/Precisa-Saude/datasus-viz',
+    'X-Title': 'datasus-viz debug',
   },
   method: 'POST',
 });

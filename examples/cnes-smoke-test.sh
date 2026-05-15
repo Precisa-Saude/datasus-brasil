@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test end-to-end do CLI `datasus-brasil cnes`.
+# Smoke test end-to-end do CLI `datasus-viz cnes`.
 #
 # Roda três cenários contra o FTP DATASUS real:
 #   1. golden path — agregação top-N por tipo

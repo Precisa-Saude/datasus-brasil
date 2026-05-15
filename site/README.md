@@ -71,7 +71,7 @@ pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2024
 pnpm -F @datasus-viz/site aggregate --ufs ALL --years 2008-2025
 ```
 
-Cache FTP: `~/.cache/datasus-brasil`. Ver
+Cache FTP: `~/.cache/datasus-viz`. Ver
 [`data-pipeline.md`](./docs/data-pipeline.md) para fluxo completo.
 
 ## Geometrias

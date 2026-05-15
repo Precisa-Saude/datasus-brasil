@@ -1,5 +1,5 @@
 /**
- * `datasus-brasil sia` — baixa SIA-PA (Produção Ambulatorial) UF × ano
+ * `datasus-viz sia` — baixa SIA-PA (Produção Ambulatorial) UF × ano
  * × mês em streaming.
  *
  * Modos:
@@ -35,7 +35,7 @@ import {
   parseStreamOptions,
 } from '../stream.js';
 
-export const SIA_USAGE = `datasus-brasil sia --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw|--labeled] [--laboratory] [--enrich-loinc] [--format json|jsonl]
+export const SIA_USAGE = `datasus-viz sia --uf <UF> --year <YYYY> --month <MM> [--top N] [--limit N] [--raw|--labeled] [--laboratory] [--enrich-loinc] [--format json|jsonl]
 
   Baixa SIA-PA (Produção Ambulatorial) em streaming.
 
@@ -59,9 +59,9 @@ export const SIA_USAGE = `datasus-brasil sia --uf <UF> --year <YYYY> --month <MM
     --format         json (default) ou jsonl. --raw/--labeled defaultam para jsonl.
 
   Exemplos:
-    datasus-brasil sia --uf AC --year 2024 --month 1
-    datasus-brasil sia --uf AC --year 2024 --month 1 --laboratory --enrich-loinc --top 10
-    datasus-brasil sia --uf SP --year 2024 --month 1 --labeled --limit 3`;
+    datasus-viz sia --uf AC --year 2024 --month 1
+    datasus-viz sia --uf AC --year 2024 --month 1 --laboratory --enrich-loinc --top 10
+    datasus-viz sia --uf SP --year 2024 --month 1 --labeled --limit 3`;
 
 export async function runSia(args: ParsedArgs): Promise<void> {
   const uf = requireOpt(args, 'uf');

@@ -89,7 +89,7 @@ _worktree_ dedicado. O _worktree-cli_ gerencia alocação de portas.
 | `main`     | `4322`                     |
 | _feature_  | `4332`+ (incremento de 10) |
 
-Registro: `/tmp/datasus-brasil-worktree-ports.json`.
+Registro: `/tmp/datasus-viz-worktree-ports.json`.
 
 ### Comandos
 

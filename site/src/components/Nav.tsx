@@ -21,7 +21,7 @@ const NAV_LINKS = [
   { col: 11, href: '/sobre', icon: BookOpen, label: 'Sobre', span: 2 },
 ] as const;
 
-const GITHUB_URL = 'https://github.com/Precisa-Saude/datasus-brasil';
+const GITHUB_URL = 'https://github.com/Precisa-Saude/datasus-viz';
 
 const logo = (
   <Link
@@ -29,7 +29,7 @@ const logo = (
     to="/"
   >
     <MapIcon className="h-6 w-6 shrink-0 text-white" />
-    datasus-brasil
+    datasus-viz
   </Link>
 );
 
