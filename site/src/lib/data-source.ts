@@ -21,11 +21,30 @@ export const DATA_BASE_URL: string = RAW_BASE_URL.startsWith('/')
 export const PMTILES_URL = `${DATA_BASE_URL}/geo/brasil.pmtiles`;
 export const MANIFEST_URL = `${DATA_BASE_URL}/manifest/index.json`;
 
+// Versão do prefixo `parquet-opt/` lida do manifest no boot do app.
+// Mutável porque o valor não existe no tempo de import (manifest é
+// async); inicializa vazia → URL legacy sem versionamento; após
+// `setParquetOptVersion`, URLs viram `parquet-opt/<v>/...`. Ver
+// postmortem 2026-05-18 em `aggregates.ts` AggregateIndex.parquetOptVersion.
+let parquetOptVersion: string = '';
+
+export function setParquetOptVersion(v: string | undefined): void {
+  parquetOptVersion = v ?? '';
+}
+
+function parquetOptPrefix(): string {
+  return parquetOptVersion === ''
+    ? `${DATA_BASE_URL}/parquet-opt`
+    : `${DATA_BASE_URL}/parquet-opt/${parquetOptVersion}`;
+}
+
 // Camada consolidada pelo `consolidate-parquet.ts` pra minimizar GETs
 // S3: um arquivo nacional pequeno + um por UF (18 anos inline).
-export const UF_TOTALS_PARQUET = `${DATA_BASE_URL}/parquet-opt/uf-totals.parquet`;
+export function ufTotalsUrl(): string {
+  return `${parquetOptPrefix()}/uf-totals.parquet`;
+}
 export function ufPartitionUrl(ufSigla: string): string {
-  return `${DATA_BASE_URL}/parquet-opt/uf=${ufSigla}/part.parquet`;
+  return `${parquetOptPrefix()}/uf=${ufSigla}/part.parquet`;
 }
 
 // Parquet bruto SIA-PA (1:1 com o DBC original do FTP DATASUS), exposto

@@ -5,8 +5,9 @@ import {
   MANIFEST_URL,
   PMTILES_URL,
   rawSiaPaUrl,
-  UF_TOTALS_PARQUET,
+  setParquetOptVersion,
   ufPartitionUrl,
+  ufTotalsUrl,
 } from '@/lib/data-source';
 
 describe('data-source URLs', () => {
@@ -24,14 +25,30 @@ describe('data-source URLs', () => {
     expect(MANIFEST_URL).toBe(`${DATA_BASE_URL}/manifest/index.json`);
   });
 
-  it('UF_TOTALS_PARQUET aponta pro agregado nacional', () => {
-    expect(UF_TOTALS_PARQUET).toBe(`${DATA_BASE_URL}/parquet-opt/uf-totals.parquet`);
+  it('ufTotalsUrl aponta pro agregado nacional (sem versão = legacy path)', () => {
+    setParquetOptVersion(undefined);
+    expect(ufTotalsUrl()).toBe(`${DATA_BASE_URL}/parquet-opt/uf-totals.parquet`);
+  });
+
+  it('ufTotalsUrl insere prefixo de versão quando setado', () => {
+    setParquetOptVersion('v20260518T215851');
+    expect(ufTotalsUrl()).toBe(`${DATA_BASE_URL}/parquet-opt/v20260518T215851/uf-totals.parquet`);
+    setParquetOptVersion(undefined);
   });
 });
 
 describe('ufPartitionUrl', () => {
-  it('monta URL no layout Hive uf=XX', () => {
+  it('monta URL no layout Hive uf=XX (sem versão)', () => {
+    setParquetOptVersion(undefined);
     expect(ufPartitionUrl('AC')).toBe(`${DATA_BASE_URL}/parquet-opt/uf=AC/part.parquet`);
+  });
+
+  it('insere prefixo de versão quando setado', () => {
+    setParquetOptVersion('v20260518T215851');
+    expect(ufPartitionUrl('SP')).toBe(
+      `${DATA_BASE_URL}/parquet-opt/v20260518T215851/uf=SP/part.parquet`,
+    );
+    setParquetOptVersion(undefined);
   });
 
   it('preserva o case da sigla', () => {

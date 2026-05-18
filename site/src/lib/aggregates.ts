@@ -43,5 +43,15 @@ export interface AggregateIndex {
   biomarkers: Array<{ code: string; display: string; loinc: string }>;
   competencias: string[];
   geradoEm: string;
+  /**
+   * Prefixo versionado pra `parquet-opt/`. Sem esse campo a URL fica
+   * `parquet-opt/uf=XX/part.parquet` (forma legacy, conteúdo mutável,
+   * cache-busting depende de invalidação CDN); com o campo, fica
+   * `parquet-opt/<version>/uf=XX/part.parquet` e o navegador
+   * naturalmente bate cache miss em cada refresh semanal. Postmortem
+   * 2026-05-18: cache-control immutable nos parquets impedia browsers
+   * de pegar dados novos mesmo após CloudFront invalidation.
+   */
+  parquetOptVersion?: string;
   years: number[];
 }

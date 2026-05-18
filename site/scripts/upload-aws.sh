@@ -28,18 +28,31 @@ if [[ -f "$BUILD_DIR/geo/brasil.pmtiles" ]]; then
     --cache-control "public, max-age=31536000, immutable"
 fi
 
-echo "→ upload Parquet consolidado (parquet-opt/)"
-if [[ -d "$BUILD_DIR/parquet-opt" ]]; then
-  aws s3 sync "$BUILD_DIR/parquet-opt" "s3://$BUCKET/parquet-opt" \
-    --delete \
+# URLs em `parquet-opt/<version>/...` mudam a cada run → browser bate
+# cache miss naturalmente. URLs estáveis com `immutable` deixavam
+# browsers travados em parquets velhos (postmortem 2026-05-18).
+echo "→ upload Parquet consolidado (parquet-opt/<version>/)"
+if [[ -d "$BUILD_DIR/parquet-opt" && -f "$BUILD_DIR/manifest/index.json" ]]; then
+  VERSION=$(jq -r '.parquetOptVersion // empty' "$BUILD_DIR/manifest/index.json")
+  if [[ -z "$VERSION" ]]; then
+    echo "✗ manifest sem parquetOptVersion — abortando upload"
+    exit 1
+  fi
+  echo "  version: $VERSION"
+  # Sem --delete: cada versão é prefixo novo isolado. Lifecycle rule
+  # no bucket cuida de limpar versões antigas (60d).
+  aws s3 sync "$BUILD_DIR/parquet-opt" "s3://$BUCKET/parquet-opt/$VERSION" \
     --cache-control "public, max-age=31536000, immutable"
 fi
 
 echo "→ upload manifest"
 if [[ -f "$BUILD_DIR/manifest/index.json" ]]; then
+  # no-cache: força revalidação. Manifest é pequeno (~6 KB) e a única
+  # coisa que aponta pra versão nova dos parquets — vale pagar o 304
+  # extra em vez de arriscar drift entre manifest velho × parquets novos.
   aws s3 cp "$BUILD_DIR/manifest/index.json" "s3://$BUCKET/manifest/index.json" \
     --content-type "application/json" \
-    --cache-control "public, max-age=3600"
+    --cache-control "public, max-age=0, must-revalidate"
 fi
 
 echo "✓ upload concluído"

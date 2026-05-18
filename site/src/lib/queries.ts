@@ -1,6 +1,6 @@
 import type { CompetenciaRange } from './aggregates';
 import type { AnomalyHit, AnomalyKind } from './anomaly';
-import { anomaliesUrl, rawSiaPaUrl, UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
+import { anomaliesUrl, rawSiaPaUrl, ufPartitionUrl, ufTotalsUrl } from './data-source';
 import { queryAll } from './duckdb';
 import sigtapCatalog from './loinc-sigtap-catalog.generated.json';
 
@@ -58,7 +58,7 @@ export async function fetchUfAggregates(range: CompetenciaRange): Promise<UfAggr
       ufSigla,
       CAST(volumeExames AS DOUBLE) AS volumeExames,
       CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
-    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    FROM read_parquet('${ufTotalsUrl()}')
     WHERE competencia BETWEEN '${range.from.replace(/'/g, "''")}' AND '${range.to.replace(/'/g, "''")}'
   `);
 }
@@ -133,7 +133,7 @@ export async function fetchVolumeByCompetencia(): Promise<VolumeByCompetenciaRow
     SELECT
       competencia,
       CAST(SUM(volumeExames) AS DOUBLE) AS volumeExames
-    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    FROM read_parquet('${ufTotalsUrl()}')
     GROUP BY competencia
     ORDER BY competencia
   `);
@@ -168,7 +168,7 @@ export async function fetchTrend(loincs: string[], ufSigla: null | string): Prom
       loinc AS seriesId,
       CAST(SUM(volumeExames) AS DOUBLE) AS volumeExames,
       CAST(SUM(valorAprovadoBRL) AS DOUBLE) AS valorAprovadoBRL
-    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    FROM read_parquet('${ufTotalsUrl()}')
     WHERE loinc IN (${safeLoincs})
     ${ufFilter}
     GROUP BY competencia, loinc
@@ -186,7 +186,7 @@ export async function fetchTopLoincsByVolume(n: number): Promise<string[]> {
   if (n <= 0) return [];
   const rows = await queryAll<{ loinc: string }>(`
     SELECT loinc
-    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    FROM read_parquet('${ufTotalsUrl()}')
     GROUP BY loinc
     ORDER BY SUM(volumeExames) DESC
     LIMIT ${Math.floor(n)}
@@ -202,7 +202,7 @@ export async function fetchTopUfsByVolume(n: number): Promise<string[]> {
   if (n <= 0) return [];
   const rows = await queryAll<{ ufSigla: string }>(`
     SELECT ufSigla
-    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    FROM read_parquet('${ufTotalsUrl()}')
     GROUP BY ufSigla
     ORDER BY SUM(volumeExames) DESC
     LIMIT ${Math.floor(n)}
@@ -338,7 +338,7 @@ export async function fetchTrendByUf(loinc: string, ufSiglas: string[]): Promise
       ufSigla AS seriesId,
       CAST(volumeExames AS DOUBLE) AS volumeExames,
       CAST(valorAprovadoBRL AS DOUBLE) AS valorAprovadoBRL
-    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    FROM read_parquet('${ufTotalsUrl()}')
     WHERE loinc = '${safeLoinc}' AND ufSigla IN (${safeUfs})
     ORDER BY competencia
   `);

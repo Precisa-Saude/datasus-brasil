@@ -9,7 +9,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { SlidingToggle } from '@/components/ui/sliding-toggle';
 import type { AggregateIndex } from '@/lib/aggregates';
 import type { AnomalyHit, AnomalyKind } from '@/lib/anomaly';
-import { MANIFEST_URL } from '@/lib/data-source';
+import { MANIFEST_URL, setParquetOptVersion } from '@/lib/data-source';
 import type { PopulationDataset } from '@/lib/population';
 import { loadPopulation } from '@/lib/population';
 import type { AnomaliesPayload } from '@/lib/queries';
@@ -62,7 +62,9 @@ const DEFAULT_PAGE_SIZE = 20;
 async function loadManifest(): Promise<AggregateIndex> {
   const res = await fetch(MANIFEST_URL);
   if (!res.ok) throw new Error(`Falha ao carregar manifest (${res.status}).`);
-  return (await res.json()) as AggregateIndex;
+  const m = (await res.json()) as AggregateIndex;
+  setParquetOptVersion(m.parquetOptVersion);
+  return m;
 }
 
 const NF_INT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });

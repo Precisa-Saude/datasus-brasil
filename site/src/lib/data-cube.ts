@@ -32,7 +32,7 @@
  */
 
 import type { CompetenciaRange } from './aggregates';
-import { UF_TOTALS_PARQUET, ufPartitionUrl } from './data-source';
+import { ufPartitionUrl, ufTotalsUrl } from './data-source';
 import { queryAll } from './duckdb';
 
 /**
@@ -110,7 +110,7 @@ export async function buildUfCube(competencias: string[]): Promise<DataCube> {
       ufSigla,
       CAST(SUM(volumeExames) AS DOUBLE) AS vol,
       CAST(SUM(valorAprovadoBRL) AS DOUBLE) AS val
-    FROM read_parquet('${UF_TOTALS_PARQUET}')
+    FROM read_parquet('${ufTotalsUrl()}')
     GROUP BY competencia, ufSigla
   `);
   const ufs = [...new Set(rows.map((r) => r.ufSigla))].sort();

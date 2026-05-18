@@ -21,7 +21,19 @@ interface IndexOut {
   biomarkers: Array<{ code: string; display: string; loinc: string }>;
   competencias: string[];
   geradoEm: string;
+  parquetOptVersion: string;
   years: number[];
+}
+
+/**
+ * Versão derivada do timestamp do run, formato `vYYYYMMDDTHHMMSS`.
+ * Cada execução semanal produz uma versão nova → URL nova em
+ * `parquet-opt/` → bust automático de cache do navegador/CDN. Sem
+ * isso, URLs estáveis com `cache-control: immutable` impediam
+ * browsers de pegar dados novos (postmortem 2026-05-18).
+ */
+function buildParquetOptVersion(geradoEm: string): string {
+  return `v${geradoEm.replace(/[-:]/g, '').slice(0, 15)}`;
 }
 
 async function query(db: duckdb.Database, sql: string): Promise<Array<Record<string, unknown>>> {
@@ -73,11 +85,13 @@ async function main(): Promise<void> {
 
   db.close(() => {});
 
+  const geradoEm = new Date().toISOString();
   const index: IndexOut = {
     availableUFs: [...availableUFs].sort(),
     biomarkers,
     competencias: competenciasRows.map((r) => String(r.competencia)),
-    geradoEm: new Date().toISOString(),
+    geradoEm,
+    parquetOptVersion: buildParquetOptVersion(geradoEm),
     years,
   };
 

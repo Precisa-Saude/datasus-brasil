@@ -10,7 +10,7 @@ import type { ComboboxItem } from '@/components/ui/combobox';
 import { Combobox } from '@/components/ui/combobox';
 import { SlidingToggle } from '@/components/ui/sliding-toggle';
 import type { AggregateIndex } from '@/lib/aggregates';
-import { MANIFEST_URL } from '@/lib/data-source';
+import { MANIFEST_URL, setParquetOptVersion } from '@/lib/data-source';
 import type { TrendPoint } from '@/lib/queries';
 import {
   fetchTopLoincsByVolume,
@@ -24,7 +24,9 @@ async function loadManifest(): Promise<AggregateIndex> {
   if (!res.ok) {
     throw new Error(`Falha ao carregar manifest (${res.status}).`);
   }
-  return (await res.json()) as AggregateIndex;
+  const m = (await res.json()) as AggregateIndex;
+  setParquetOptVersion(m.parquetOptVersion);
+  return m;
 }
 
 const NATIONAL = '__BR__';
