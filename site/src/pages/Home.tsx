@@ -8,7 +8,7 @@ import { MunicipioDetail } from '@/components/MunicipioDetail';
 import type { OverviewRow } from '@/components/OverviewTable';
 import { OverviewTable } from '@/components/OverviewTable';
 import type { AggregateIndex, CompetenciaRange, MunicipioAggregate } from '@/lib/aggregates';
-import { MANIFEST_URL } from '@/lib/data-source';
+import { MANIFEST_URL, setParquetOptVersion } from '@/lib/data-source';
 import { formatCompetenciaRange } from '@/lib/format';
 import { fetchMunicipioDetail, fetchVolumeByCompetencia } from '@/lib/queries';
 import { useCompetenciaRange } from '@/lib/use-competencia-range';
@@ -22,7 +22,9 @@ async function loadManifest(): Promise<AggregateIndex> {
         '`pnpm -F @datasus-viz/site aggregate` e atualize o bucket S3/CloudFront.',
     );
   }
-  return (await res.json()) as AggregateIndex;
+  const m = (await res.json()) as AggregateIndex;
+  setParquetOptVersion(m.parquetOptVersion);
+  return m;
 }
 
 const GERADO_EM_FMT = new Intl.DateTimeFormat('pt-BR', {
