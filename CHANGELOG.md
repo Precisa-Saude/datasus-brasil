@@ -1,3 +1,9 @@
+## [1.7.5](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.4...v1.7.5) (2026-05-18)
+
+### Bug Fixes
+
+* **ci:** diff inclui parquetOptVersion pra detectar mudança de URL ([#46](https://github.com/Precisa-Saude/datasus-viz/issues/46)) ([ae1833f](https://github.com/Precisa-Saude/datasus-viz/commit/ae1833fd9475177826476ab0ef86b6879b441f9f)), closes [#45](https://github.com/Precisa-Saude/datasus-viz/issues/45) [#45](https://github.com/Precisa-Saude/datasus-viz/issues/45)
+
 ## [1.7.4](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.3...v1.7.4) (2026-05-18)
 
 ### Bug Fixes

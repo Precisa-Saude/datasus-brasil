@@ -1,6 +1,6 @@
 {
   "name": "@precisa-saude/datasus-cli",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "CLI para microdados DATASUS — download, decodificação e agregação com saída JSON/JSONL",
   "keywords": [
     "datasus",
