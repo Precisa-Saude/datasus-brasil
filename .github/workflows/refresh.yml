@@ -104,9 +104,13 @@ jobs:
           # republica — economiza CloudFront invalidation e bytes de S3.
           REMOTE=$(aws s3 cp "s3://$BUCKET/manifest/index.json" - 2>/dev/null || echo '{}')
           LOCAL=$(cat site/build/manifest/index.json)
-          # Compara só os campos que importam (ignora geradoEm que muda toda execução).
-          REMOTE_KEY=$(echo "$REMOTE" | jq -c '{years, availableUFs, competencias, biomarkers}' 2>/dev/null || echo '{}')
-          LOCAL_KEY=$(echo "$LOCAL" | jq -c '{years, availableUFs, competencias, biomarkers}')
+          # Compara campos que importam. Inclui parquetOptVersion porque ele
+          # endereça o prefixo do bucket — version novo = parquets em
+          # `parquet-opt/<v>/` ainda não existem no S3, precisa subir mesmo
+          # com data inalterada. geradoEm fica de fora (timestamp puro, sem
+          # impacto em URL).
+          REMOTE_KEY=$(echo "$REMOTE" | jq -c '{years, availableUFs, competencias, biomarkers, parquetOptVersion}' 2>/dev/null || echo '{}')
+          LOCAL_KEY=$(echo "$LOCAL" | jq -c '{years, availableUFs, competencias, biomarkers, parquetOptVersion}')
           if [ "$REMOTE_KEY" = "$LOCAL_KEY" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "Sem mudanças no manifesto — pulando upload + invalidation."
