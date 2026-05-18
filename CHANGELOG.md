@@ -1,3 +1,17 @@
+## [1.7.2](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.1...v1.7.2) (2026-05-18)
+
+### Bug Fixes
+
+* **site:** retry+fail-loud no aggregate, guard regressão no refresh ([#43](https://github.com/Precisa-Saude/datasus-viz/issues/43)) ([15df56b](https://github.com/Precisa-Saude/datasus-viz/commit/15df56bc20b4b5d817d07fda53d68739dbb567e2))
+
+### CI/CD
+
+* pin actions e adicionar tripwire publish-watch (postmortem TanStack) ([#41](https://github.com/Precisa-Saude/datasus-viz/issues/41)) ([8eb6291](https://github.com/Precisa-Saude/datasus-viz/commit/8eb6291f8b3cc9ce4db90c33d79b6248283d3924))
+
+### Chores
+
+* renomear datasus-brasil → datasus-viz em todo o conteúdo ([#42](https://github.com/Precisa-Saude/datasus-viz/issues/42)) ([88cf321](https://github.com/Precisa-Saude/datasus-viz/commit/88cf3211bac2830db51d1dbf8eae59dc9d24786e))
+
 ## [1.7.1](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.0...v1.7.1) (2026-05-13)
 
 ### Bug Fixes
