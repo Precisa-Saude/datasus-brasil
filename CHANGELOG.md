@@ -1,3 +1,9 @@
+## [1.7.4](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.3...v1.7.4) (2026-05-18)
+
+### Bug Fixes
+
+* **site:** URLs versionadas para parquet-opt — bust cache automático ([#45](https://github.com/Precisa-Saude/datasus-viz/issues/45)) ([664a791](https://github.com/Precisa-Saude/datasus-viz/commit/664a791528bec06fd293af8a170d52a18a3c75e1))
+
 ## [1.7.3](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.2...v1.7.3) (2026-05-18)
 
 ### Bug Fixes
