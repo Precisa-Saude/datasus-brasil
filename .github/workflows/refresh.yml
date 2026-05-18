@@ -63,6 +63,25 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          # Aggregate força roda ~90min; default de 1h fazia STS token expirar
+          # mid-run e DuckDB httpfs ficava com creds inválidas → HTTP 400 em
+          # massa (run 26052987721 falhou em 62min por isso). Role
+          # MaxSessionDuration foi bumped pra 10800s; pedimos 10800 aqui.
+          role-duration-seconds: 10800
+
+      # Cache parquet agregado entre runs: aggregate é idempotente — partição
+      # já materializada em build/parquet/ é skipada. Sem cache, runner
+      # ephemeral começa do zero toda execução. Com cache, retry após falha
+      # transiente (token, CloudFront, network) recupera quase tudo. Key
+      # versionada por commit do script + SDK pra invalidar quando lógica
+      # de agregação muda (schema, mapping LOINC).
+      - name: Cache build/parquet
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: site/build/parquet
+          key: parquet-agg-v2-${{ hashFiles('site/scripts/aggregate-sia-parquet.ts', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            parquet-agg-v2-
 
       - name: Aggregate (idempotente — pula partições já agregadas)
         run: |
