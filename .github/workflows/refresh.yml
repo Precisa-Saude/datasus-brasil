@@ -93,7 +93,30 @@ jobs:
             echo "Sem mudanças no manifesto — pulando upload + invalidation."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Manifesto mudou — republicando."
+            echo "Manifesto mudou — verificando se não é regressão."
+          fi
+
+      # Guard contra regressão: aborta se cobertura do manifest novo for
+      # MENOR que a publicada. Postmortem 2026-05-18: aggregate produziu
+      # silenciosamente 1 ano × 12 UFs após 403s do CloudFront em 2009+;
+      # passou no diff (era "diferente"), foi publicado, viz quebrou.
+      # Aqui pegamos antes do upload.
+      - name: Guard contra regressão de cobertura
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          REMOTE=$(aws s3 cp "s3://$BUCKET/manifest/index.json" - 2>/dev/null || echo '{}')
+          LOCAL=$(cat site/build/manifest/index.json)
+          R_YEARS=$(echo "$REMOTE" | jq '(.years // []) | length')
+          R_UFS=$(echo "$REMOTE" | jq '(.availableUFs // []) | length')
+          R_COMPS=$(echo "$REMOTE" | jq '(.competencias // []) | length')
+          L_YEARS=$(echo "$LOCAL"  | jq '(.years // []) | length')
+          L_UFS=$(echo "$LOCAL"  | jq '(.availableUFs // []) | length')
+          L_COMPS=$(echo "$LOCAL"  | jq '(.competencias // []) | length')
+          echo "remote: years=$R_YEARS ufs=$R_UFS comps=$R_COMPS"
+          echo "local:  years=$L_YEARS ufs=$L_UFS comps=$L_COMPS"
+          if [ "$L_YEARS" -lt "$R_YEARS" ] || [ "$L_UFS" -lt "$R_UFS" ] || [ "$L_COMPS" -lt "$R_COMPS" ]; then
+            echo "::error::Manifesto novo regride cobertura — abortando upload. Investigue logs do aggregate."
+            exit 1
           fi
 
       # Re-issue STS credentials antes do Upload. O Aggregate pode rodar

@@ -175,6 +175,29 @@ async function ensureHttpfsInstalled(): Promise<void> {
   });
 }
 
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  label: string,
+  attempts = 3,
+  baseMs = 1000,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i === attempts - 1) break;
+      const wait = baseMs * 4 ** i;
+      process.stderr.write(
+        `  ↺ ${label}: tentativa ${i + 1}/${attempts} falhou (${(err as Error).message.split('\n')[0]}), aguardando ${wait}ms\n`,
+      );
+      await new Promise((res) => setTimeout(res, wait));
+    }
+  }
+  throw lastErr;
+}
+
 function aggregateMonthSql(url: string): Promise<AggregatedRow[]> {
   return new Promise((res, rej) => {
     const db = new duckdb.Database(':memory:');
@@ -310,7 +333,11 @@ async function processMonth(
   }
 
   const competencia = `${year}-${mesStr}`;
-  const aggregated = await aggregateMonthSql(url);
+  // Retry com backoff exponencial: CloudFront 403 transiente já derrubou
+  // run inteiro (2026-05-18 09:24 UTC: 2009+ todos falharam, gerando
+  // manifest só com 2008 / 12 UFs). 3 tentativas × backoff 1s/4s/16s
+  // absorvem rate-limit sem custar muito no caminho feliz.
+  const aggregated = await retryWithBackoff(() => aggregateMonthSql(url), `${uf} ${competencia}`);
   const rows = enrichAndReaggregate(aggregated, uf, competencia);
   await writeMonthPartition(cli.outDir, uf, year, month, rows);
   return { emitted: rows.length, status: isRefresh ? 'refreshed' : 'done' };
@@ -336,6 +363,7 @@ async function main(): Promise<void> {
   // ainda escrevem suas partições. Erros viram marker 'e' na saída
   // pra não passar batido. Idempotência cuida do retry no próximo run.
   let totalRefreshed = 0;
+  let totalFailed = 0;
   for (const year of cli.years) {
     for (const uf of cli.ufs) {
       const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -343,6 +371,7 @@ async function main(): Promise<void> {
       const markers = settled.map((s, i) => {
         const m = i + 1;
         if (s.status === 'rejected') {
+          totalFailed += 1;
           process.stderr.write(
             `\n  ✗ ${uf} ${year}-${String(m).padStart(2, '0')}: ` +
               `${(s.reason as Error).message}\n`,
@@ -367,6 +396,25 @@ async function main(): Promise<void> {
   if (totalRefreshed > 0) {
     process.stderr.write(
       `↻ ${totalRefreshed} partição(ões) reagregada(s) por revisão upstream do datasus-parquet.\n`,
+    );
+  }
+  // Fail-loud: limite default 24 (= 2 UFs/ano de tolerância) absorve falhas
+  // isoladas mas pega catástrofes como 2026-05-18 09:24 UTC, onde 2009+
+  // inteiro falhou com 403 e o run terminou "limpo" publicando manifest
+  // só com 2008. Override via AGGREGATE_MAX_FAILURES.
+  const maxFailures = Number(process.env.AGGREGATE_MAX_FAILURES ?? '24');
+  if (totalFailed > maxFailures) {
+    process.stderr.write(
+      `\n✗ ${totalFailed} partições falharam (limite=${maxFailures}). ` +
+        `Provavelmente algo sistêmico (CloudFront throttling, S3 down, schema break). ` +
+        `Não progredindo para upload — o manifest publicado seria parcial.\n`,
+    );
+    process.exit(2);
+  }
+  if (totalFailed > 0) {
+    process.stderr.write(
+      `⚠ ${totalFailed} partições falharam (dentro do limite ${maxFailures}). ` +
+        `Próximo run idempotente vai re-tentar.\n`,
     );
   }
   process.stderr.write(`✓ Agregado em ${cli.outDir}\n`);
