@@ -37,10 +37,17 @@ import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { findMunicipio, sigtapToLoinc } from '@precisa-saude/datasus-sdk';
 import duckdb from 'duckdb';
 
-const DEFAULT_SOURCE_URL = 'https://dfdu08vi8wsus.cloudfront.net';
+// Default lê via s3:// (assumindo role no workflow). CloudFront tinha
+// rate-limit WAF que derrubava o próprio refresh (postmortem
+// 2026-05-18 09:24 UTC: 403s a partir de 2008/MT, manifest publicado
+// só com 2008). Acesso direto S3 com IAM role bypassa WAF e é mais
+// rápido (sem CDN hop). HTTPS continua suportado via --source-url
+// pra uso local sem creds AWS.
+const DEFAULT_SOURCE_URL = 's3://precisa-saude-datasus-brasil';
 
 interface Cli {
   force: boolean;
@@ -118,37 +125,59 @@ function parseArgs(argv: string[]): Cli {
   };
 }
 
+function parseS3Url(url: string): null | { bucket: string; prefix: string } {
+  const m = url.match(/^s3:\/\/([^/]+)(?:\/(.*))?$/);
+  if (!m) return null;
+  return { bucket: m[1]!, prefix: m[2] ?? '' };
+}
+
 function rawUrl(sourceUrl: string, uf: string, year: number, month: number): string {
   const mesStr = String(month).padStart(2, '0');
   return `${sourceUrl}/sia-pa/ano=${year}/uf=${uf}/mes=${mesStr}/part.parquet`;
 }
 
-async function remoteExists(url: string): Promise<boolean> {
+// S3 client compartilhado entre todas as checagens HEAD. Credentials e
+// região vêm do ambiente (AWS_*). Reusar conexão é importante: aggregate
+// faz ~6000 HEADs em sequência (existsSync false-positives no caminho
+// frio do runner) e instanciar um client por request inflava latência.
+const s3Client = new S3Client({ region: process.env.AWS_REGION ?? 'sa-east-1' });
+
+async function s3HeadObject(
+  bucket: string,
+  key: string,
+): Promise<null | { lastModifiedMs: null | number }> {
   try {
-    const res = await fetch(url, { method: 'HEAD' });
-    return res.ok;
-  } catch {
-    return false;
+    const res = await s3Client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return {
+      lastModifiedMs: res.LastModified instanceof Date ? res.LastModified.getTime() : null,
+    };
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === 'NotFound' || name === 'NoSuchKey') return null;
+    throw err;
   }
 }
 
-/**
- * Devolve o `Last-Modified` do raw parquet remoto convertido pra epoch
- * ms, ou `null` se o header estiver ausente / a request falhar. Usado
- * pra detectar partições publicadas pelo `datasus-parquet` mais
- * recentemente que o agregado local — DATASUS reescreve meses
- * históricos quando o gestor empurra correções retroativas, e o
- * `existsSync` puro do `processMonth` deixava essas correções
- * congeladas no `parquet-opt` indefinidamente.
- */
-async function remoteLastModified(url: string): Promise<null | number> {
+async function remoteHead(
+  sourceUrl: string,
+  uf: string,
+  year: number,
+  month: number,
+): Promise<null | { lastModifiedMs: null | number }> {
+  const mesStr = String(month).padStart(2, '0');
+  const s3 = parseS3Url(sourceUrl);
+  if (s3 !== null) {
+    const key =
+      `${s3.prefix ? `${s3.prefix}/` : ''}` +
+      `sia-pa/ano=${year}/uf=${uf}/mes=${mesStr}/part.parquet`;
+    return s3HeadObject(s3.bucket, key);
+  }
   try {
-    const res = await fetch(url, { method: 'HEAD' });
+    const res = await fetch(rawUrl(sourceUrl, uf, year, month), { method: 'HEAD' });
     if (!res.ok) return null;
     const lm = res.headers.get('last-modified');
-    if (lm === null) return null;
-    const t = Date.parse(lm);
-    return Number.isNaN(t) ? null : t;
+    const t = lm === null ? null : Date.parse(lm);
+    return { lastModifiedMs: t === null || Number.isNaN(t) ? null : t };
   } catch {
     return null;
   }
@@ -173,6 +202,22 @@ async function ensureHttpfsInstalled(): Promise<void> {
       db.close(() => (err ? rej(err) : res()));
     });
   });
+}
+
+// Configura credenciais S3 numa sessão DuckDB pra leitura via s3://.
+// DuckDB lê AWS_* do ambiente, mas precisa do SET s3_region explícito
+// (alguns ambientes não exportam AWS_REGION). Inclui session token pra
+// suportar role assumida (workflow usa aws-actions/configure-aws-credentials).
+function s3SessionSetup(): string {
+  const region = (process.env.AWS_REGION ?? 'sa-east-1').replace(/'/g, "''");
+  const ak = (process.env.AWS_ACCESS_KEY_ID ?? '').replace(/'/g, "''");
+  const sk = (process.env.AWS_SECRET_ACCESS_KEY ?? '').replace(/'/g, "''");
+  const st = (process.env.AWS_SESSION_TOKEN ?? '').replace(/'/g, "''");
+  const parts = [`SET s3_region='${region}';`];
+  if (ak !== '') parts.push(`SET s3_access_key_id='${ak}';`);
+  if (sk !== '') parts.push(`SET s3_secret_access_key='${sk}';`);
+  if (st !== '') parts.push(`SET s3_session_token='${st}';`);
+  return parts.join(' ');
 }
 
 async function retryWithBackoff<T>(
@@ -206,7 +251,7 @@ function aggregateMonthSql(url: string): Promise<AggregatedRow[]> {
     // LOAD httpfs por DB (cada in-memory DB precisa ativar a extensão);
     // INSTALL acontece uma vez via ensureHttpfsInstalled() antes do fanout.
     db.all(
-      `LOAD httpfs;
+      `LOAD httpfs; ${s3SessionSetup()}
        SELECT
          CAST(PA_UFMUN AS VARCHAR) AS municipioCode,
          CAST(PA_PROC_ID AS VARCHAR) AS sigtap,
@@ -321,15 +366,16 @@ async function processMonth(
   // Last-Modified disponível, mantém o comportamento histórico (skip
   // — fail open, pra não regredir em mirrors sem suporte a HEAD).
   let isRefresh = false;
+  const head = await remoteHead(cli.sourceUrl, uf, year, month);
+  if (head === null) {
+    return { emitted: 0, status: '404' };
+  }
   if (existsSync(outFile) && !cli.force) {
     const localMtime = statSync(outFile).mtimeMs;
-    const remoteMtime = await remoteLastModified(url);
-    if (remoteMtime === null || remoteMtime <= localMtime) {
+    if (head.lastModifiedMs === null || head.lastModifiedMs <= localMtime) {
       return { emitted: 0, status: 'skipped' };
     }
     isRefresh = true;
-  } else if (!(await remoteExists(url))) {
-    return { emitted: 0, status: '404' };
   }
 
   const competencia = `${year}-${mesStr}`;
