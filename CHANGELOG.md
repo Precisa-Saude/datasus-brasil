@@ -1,3 +1,9 @@
+## [1.7.3](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.2...v1.7.3) (2026-05-18)
+
+### Bug Fixes
+
+* **ci:** role-duration 3h + cache build/parquet entre runs ([#44](https://github.com/Precisa-Saude/datasus-viz/issues/44)) ([bb11867](https://github.com/Precisa-Saude/datasus-viz/commit/bb118674edfe2d9ae869087e0ed31e099c949d5d))
+
 ## [1.7.2](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.1...v1.7.2) (2026-05-18)
 
 ### Bug Fixes
