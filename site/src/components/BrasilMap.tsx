@@ -196,10 +196,9 @@ export function BrasilMap(props: BrasilMapProps) {
       // compact: true mantém a atribuição colapsada no ícone (i) por
       // padrão, sem ocupar espaço sobre o mapa.
       attributionControl: { compact: true },
-      bearing: 180,
       bounds: BRAZIL_BOUNDS,
       container: containerRef.current,
-      fitBoundsOptions: { bearing: 180, padding: BRAZIL_FIT_PADDING },
+      fitBoundsOptions: { padding: BRAZIL_FIT_PADDING },
       // Impede pan além do Brasil + evita artefatos de world-wrap
       // horizontal (polígonos duplicados quando o mapa scrolla sobre
       // o antimeridian em zoom baixo).
@@ -383,7 +382,7 @@ function fitToUf(
     }
   }
   if (bounds && !bounds.isEmpty()) {
-    map.fitBounds(bounds, { bearing: 180, duration: 1200, padding: 40 });
+    map.fitBounds(bounds, { duration: 1200, padding: 40 });
   }
 }
 
@@ -416,7 +415,6 @@ function focusMunicipio(map: maplibregl.Map, codigo: string): boolean {
 
 function fitToBrazil(map: maplibregl.Map): void {
   map.fitBounds(BRAZIL_BOUNDS, {
-    bearing: 180,
     duration: 1200,
     padding: BRAZIL_FIT_PADDING,
   });
