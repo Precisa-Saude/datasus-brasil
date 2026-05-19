@@ -1,3 +1,9 @@
+## [1.7.6](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.5...v1.7.6) (2026-05-19)
+
+### Bug Fixes
+
+* **site:** remover bearing 180 do mapa pra voltar à orientação padrão ([e313aaa](https://github.com/Precisa-Saude/datasus-viz/commit/e313aaa30f49997bd4427e40075b213ea2b027c4))
+
 ## [1.7.5](https://github.com/Precisa-Saude/datasus-viz/compare/v1.7.4...v1.7.5) (2026-05-18)
 
 ### Bug Fixes
